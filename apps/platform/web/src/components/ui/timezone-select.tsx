@@ -50,6 +50,8 @@ export function TimezoneSelect({
   const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
 
   // Offsets are computed once per mount (~400 Intl instantiations); lazy so
   // closed pickers cost nothing.
@@ -72,7 +74,18 @@ export function TimezoneSelect({
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    searchRef.current?.focus();
+    // Touch screens: the keyboard would cover the list, so leave the search
+    // for a tap.
+    if (!window.matchMedia('(hover: none)').matches) searchRef.current?.focus();
+    // Start the list at the current zone, and bring the whole panel into
+    // view - inside a scrolling dialog on a phone it opens below the fold.
+    const list = listRef.current;
+    const current = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (list && current) {
+      // offsetTop is measured from the panel, which also holds the search row.
+      list.scrollTop = current.offsetTop - list.offsetTop - list.clientHeight / 2;
+    }
+    panelRef.current?.scrollIntoView({ block: 'nearest' });
     const onClickOutside = (e: MouseEvent): void => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -125,7 +138,10 @@ export function TimezoneSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border-none bg-white shadow-float-lg">
+        <div
+          ref={panelRef}
+          className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border-none bg-white shadow-float-lg"
+        >
           <div className="flex items-center gap-2 border-b border-[#e6e5ea]/60 px-3.5 py-2.5">
             <Search className="h-3.5 w-3.5 shrink-0 text-[#B5B0AA]" />
             <input
@@ -139,7 +155,7 @@ export function TimezoneSelect({
               className="w-full bg-transparent text-[13px] text-[#3D3B4F] placeholder:text-[#B5B0AA] focus:outline-none"
             />
           </div>
-          <ul role="listbox" className="max-h-64 overflow-y-auto py-1">
+          <ul ref={listRef} role="listbox" className="max-h-64 overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <li className="px-3.5 py-3 text-[13px] text-[#B5B0AA]">No timezones match</li>
             ) : (

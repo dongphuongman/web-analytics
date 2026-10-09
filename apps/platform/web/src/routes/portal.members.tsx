@@ -41,7 +41,9 @@ interface Invite {
 
 const CARD = 'rounded-[20px] bg-white shadow-float';
 const EYEBROW = 'text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]';
-const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_110px_120px] items-center gap-3';
+// Phones drop the role column: the pill rides beside the name instead.
+const ROW_GRID =
+  'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_110px_120px] items-center gap-3';
 
 // Deterministic avatar tint per person - the chart palette, so the roster
 // reads with the rest of the product.
@@ -170,9 +172,12 @@ function OwnerView({
               <div className="flex min-w-0 items-center gap-3">
                 <Avatar name={m.name || m.email} index={i} />
                 <div className="flex min-w-0 flex-col">
-                  <span className="flex items-center gap-1.5 truncate text-[13.5px] font-semibold text-[#3D3B4F]">
-                    {m.name || m.email.split('@')[0]}
-                    {isMe && <span className="font-normal text-[#9B9590]">(you)</span>}
+                  <span className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-semibold text-[#3D3B4F]">
+                    <span className="truncate">{m.name || m.email.split('@')[0]}</span>
+                    {isMe && <span className="shrink-0 font-normal text-[#9B9590]">(you)</span>}
+                    <span className="shrink-0 sm:hidden">
+                      <RolePill role={m.role} />
+                    </span>
                   </span>
                   <span className="truncate text-[12px] text-[#9B9590]">
                     {m.email}
@@ -180,7 +185,7 @@ function OwnerView({
                   </span>
                 </div>
               </div>
-              <div>
+              <div className="max-sm:hidden">
                 <RolePill role={m.role} />
               </div>
               <div className="flex justify-end">
@@ -226,8 +231,11 @@ function OwnerView({
                     <Mail className="h-3.5 w-3.5" strokeWidth={1.8} />
                   </span>
                   <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-[13.5px] font-medium text-[#6E6C7C]">
-                      {inv.email}
+                    <span className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-medium text-[#6E6C7C]">
+                      <span className="truncate">{inv.email}</span>
+                      <span className="shrink-0 sm:hidden">
+                        <RolePill role={inv.role === 'owner' ? 'owner' : 'member'} />
+                      </span>
                     </span>
                     <span className="flex items-center gap-1.5 text-[12px] text-[#9B9590]">
                       <Clock className="h-3 w-3" strokeWidth={1.8} />
@@ -235,7 +243,7 @@ function OwnerView({
                     </span>
                   </div>
                 </div>
-                <div>
+                <div className="max-sm:hidden">
                   <RolePill role={inv.role === 'owner' ? 'owner' : 'member'} />
                 </div>
                 <div className="flex justify-end">

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   User,
@@ -16,6 +16,7 @@ import {
   Copy,
   Check,
   Github,
+  Menu,
 } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { destroyUrl, updateUrl, useInstanceConfig, useLatestVersion } from '@/lib/config';
@@ -93,12 +94,20 @@ function PortalLayout(): React.ReactNode {
  */
 function PortalHeader(): React.ReactNode {
   const { current } = useWorkspace();
+  const tabs = NAV_TABS.filter(t => !t.ownerOnly || current?.role === 'owner');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const location = useLocation();
+
+  // Navigating from the mobile menu closes it.
+  useEffect(() => setMenuOpen(false), [location.pathname]);
 
   return (
     // One-line chrome: identity, navigation, and account share a single row -
-    // the old tab rail's 42px goes back to the content.
+    // the old tab rail's 42px goes back to the content. Below lg the tabs
+    // don't fit beside the workspace switcher, so they fold into a menu.
     <header className="sticky top-0 z-40 border-b border-[#ECEAE5] bg-white">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
         <div className="flex h-full min-w-0 items-center">
           <Link to="/portal/sites" className="flex shrink-0 items-center gap-2">
             <img src="/logo.svg" alt="Traks" className="h-6 w-6" />
@@ -108,25 +117,100 @@ function PortalHeader(): React.ReactNode {
           </Link>
           <BreadcrumbSlash />
           <WorkspaceSwitcher />
-          <BreadcrumbSlash />
-          <nav className="flex h-full items-center gap-0.5">
-            <HeaderTab to="/portal/sites" alsoMatchPaths={['/portal/site/']}>
-              Sites
-            </HeaderTab>
-            <HeaderTab to="/portal/skill">Skill</HeaderTab>
-            <HeaderTab to="/portal/mcp">MCP server</HeaderTab>
-            <HeaderTab to="/portal/tokens">API tokens</HeaderTab>
-            {current?.role === 'owner' && <HeaderTab to="/portal/members">Members</HeaderTab>}
-            <HeaderTab to="/portal/settings">Settings</HeaderTab>
-          </nav>
+          <span className="hidden h-full items-center lg:flex">
+            <BreadcrumbSlash />
+            <nav className="flex h-full items-center gap-0.5">
+              {tabs.map(tab => (
+                <HeaderTab key={tab.to} to={tab.to} alsoMatchPaths={tab.alsoMatchPaths}>
+                  {tab.label}
+                </HeaderTab>
+              ))}
+            </nav>
+          </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <VersionPill />
           <ContactButton />
           <UserMenu />
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-nav"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[#3D3B4F] transition-colors hover:bg-[#F2F1ED] lg:hidden cursor-pointer"
+          >
+            {menuOpen ? (
+              <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            ) : (
+              <Menu className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            )}
+          </button>
         </div>
       </div>
+      {menuOpen && <MobileNav tabs={tabs} onClose={closeMenu} />}
     </header>
+  );
+}
+
+const NAV_TABS: { to: string; label: string; alsoMatchPaths?: string[]; ownerOnly?: boolean }[] = [
+  { to: '/portal/sites', label: 'Sites', alsoMatchPaths: ['/portal/site/'] },
+  { to: '/portal/skill', label: 'Skill' },
+  { to: '/portal/mcp', label: 'MCP server' },
+  { to: '/portal/tokens', label: 'API tokens' },
+  { to: '/portal/members', label: 'Members', ownerOnly: true },
+  { to: '/portal/settings', label: 'Settings' },
+];
+
+/** The header tabs as a drop-down sheet under the header (below lg). */
+function MobileNav({
+  tabs,
+  onClose,
+}: {
+  tabs: typeof NAV_TABS;
+  onClose: () => void;
+}): React.ReactNode {
+  const location = useLocation();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <>
+      <div
+        aria-hidden
+        onClick={onClose}
+        className="fixed inset-x-0 bottom-0 top-14 bg-[#3D3B4F]/20 lg:hidden animate-in fade-in-0 duration-150"
+      />
+      <nav
+        id="mobile-nav"
+        className="absolute inset-x-0 top-full border-b border-[#ECEAE5] bg-white px-4 pb-3 pt-2 shadow-float lg:hidden animate-in slide-in-from-top-1 fade-in-0 duration-150 sm:px-6"
+      >
+        {tabs.map(tab => {
+          const isActive =
+            location.pathname.startsWith(tab.to) ||
+            (tab.alsoMatchPaths?.some(p => location.pathname.startsWith(p)) ?? false);
+          return (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              onClick={onClose}
+              className={`flex h-11 items-center rounded-[10px] px-3 text-[15px] transition-colors ${
+                isActive
+                  ? 'bg-[#F2F1ED] font-semibold text-[#3D3B4F]'
+                  : 'text-[#6F6D7A] hover:bg-[#F2F2F0] hover:text-[#3D3B4F]'
+              }`}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 
@@ -236,11 +320,13 @@ function VersionPill(): React.ReactNode {
         target="_blank"
         rel="noopener noreferrer"
         title={`Traks ${latest} is available (you're running ${config.version})`}
-        className="flex h-8 items-center gap-1.5 rounded-full bg-mint px-3 text-[11.5px] font-bold text-[#123326] transition-all hover:-translate-y-px"
+        className="flex h-8 items-center gap-1.5 rounded-full bg-mint px-2 text-[11.5px] font-bold text-[#123326] transition-all hover:-translate-y-px sm:px-3"
       >
         <ArrowUpCircle className="h-3.5 w-3.5" strokeWidth={2.2} />
-        <span className="font-mono">v{latest}</span>
-        <span className="hidden sm:inline">available</span>
+        {/* Phones: icon only - the banner under the header spells it out.
+            The text stays for screen readers. */}
+        <span className="font-mono max-sm:sr-only">v{latest}</span>
+        <span className="max-sm:sr-only">available</span>
       </a>
     );
   }
@@ -263,7 +349,7 @@ function ContactButton(): React.ReactNode {
         onClick={() => setOpen(true)}
         aria-label="Contact us"
         title="Contact us"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-[#6E6C7C] transition-colors hover:border-[#E6E4DE] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] cursor-pointer"
+        className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-[#6E6C7C] transition-colors hover:border-[#E6E4DE] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] cursor-pointer"
       >
         <Mail className="h-[18px] w-[18px]" strokeWidth={1.8} />
       </button>
@@ -318,14 +404,17 @@ function UserMenu(): React.ReactNode {
       <ContactDialog open={contactOpen} onOpenChange={setContactOpen} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full bg-white border border-[#E6E4DE] transition-colors hover:border-[#D8D5CD] focus:outline-none">
+          <button
+            aria-label={`${displayName} - account menu`}
+            className="flex items-center gap-2 pl-1.5 pr-1.5 sm:pr-3 py-1.5 rounded-full bg-white border border-[#E6E4DE] transition-colors hover:border-[#D8D5CD] focus:outline-none"
+          >
             <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
               <User className="w-4 h-4 text-foreground" />
             </div>
             <span className="hidden sm:block text-sm font-medium text-[#3D3B4F] max-w-[100px] truncate">
               {displayName}
             </span>
-            <ChevronDown className="w-3.5 h-3.5 text-[#9B9590]" />
+            <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-[#9B9590]" />
           </button>
         </DropdownMenuTrigger>
 

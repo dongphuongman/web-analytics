@@ -92,18 +92,19 @@ function SitesPage(): ReactElement {
   };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-8">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      {/* Page header: on phones the controls drop to their own row, with
+          search taking the slack and Refresh shrinking to its icon. */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-4 sm:mb-8">
         <div>
           <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">Your Sites</h1>
           <p className="mt-1 text-[14px] text-[#9B9590]">
             {workspace ? `Sites in ${workspace.name}` : 'Select a site to view its analytics'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:gap-3">
           {!isLoading && allSites.length > 0 && (
-            <div className="relative">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
               <Search
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5B0AA]"
                 strokeWidth={1.8}
@@ -112,7 +113,7 @@ function SitesPage(): ReactElement {
                 placeholder="Search sites..."
                 value={search}
                 onChange={e => handleSearchChange(e.target.value)}
-                className="pl-10 pr-9 rounded-full h-10 w-56 text-[14px]"
+                className="pl-10 pr-9 rounded-full h-10 w-full text-[14px] sm:w-56"
               />
               {search && (
                 <button
@@ -129,16 +130,20 @@ function SitesPage(): ReactElement {
             onClick={handleRefresh}
             disabled={isFetching}
             aria-label="Refresh sites"
-            className="h-10 px-4"
+            className="h-10 px-3 sm:px-4"
           >
             <RefreshCw
               className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
               strokeWidth={1.8}
             />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           {isWorkspaceOwner && (
-            <Button variant="dark" onClick={() => setWizardOpen(true)} className="px-5 h-10">
+            <Button
+              variant="dark"
+              onClick={() => setWizardOpen(true)}
+              className="h-10 shrink-0 px-4 sm:px-5"
+            >
               <Plus className="h-4 w-4" />
               Add Site
             </Button>

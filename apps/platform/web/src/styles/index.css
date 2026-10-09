@@ -175,3 +175,14 @@
 ::selection {
   background: rgba(40, 233, 159, 0.25);
 }
+
+/* iOS Safari zooms the page into any focused field under 16px. Touch phones
+ * get 16px form text; unlayered, so it outranks the text-[13px]-style
+ * utilities without !important. */
+@media (pointer: coarse) and (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

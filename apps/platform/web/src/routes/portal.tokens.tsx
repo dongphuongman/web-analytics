@@ -272,20 +272,20 @@ function TokenItem({
         </div>
       ) : (
         <>
-          <div className="w-[84px]">
+          <div className="sm:w-[84px]">
             <ScopePill scope={token.scope} />
           </div>
-          <div className="w-[150px] text-[12px] leading-snug">
-            <p className={token.lastUsedAt ? 'text-[#6E6C7C]' : 'text-[#B5B0AA]'}>
+          <div className="min-w-0 flex-1 text-[12px] leading-snug sm:w-[150px] sm:flex-none">
+            <p className={`truncate ${token.lastUsedAt ? 'text-[#6E6C7C]' : 'text-[#B5B0AA]'}`}>
               {token.lastUsedAt ? `Used ${formatWhen(token.lastUsedAt)}` : 'Never used'}
             </p>
             {token.createdAt && (
-              <p className="text-[#B5B0AA]">Created {formatWhen(token.createdAt)}</p>
+              <p className="truncate text-[#B5B0AA]">Created {formatWhen(token.createdAt)}</p>
             )}
           </div>
           <button
             onClick={onAskRevoke}
-            className="ml-auto rounded-full border border-[#E6E4DE] px-3 py-1.5 text-[12px] font-semibold text-[#6E6C7C] hover:border-[#f1c9bd] hover:bg-[#fdf1ed] hover:text-[#c9694f] transition-colors cursor-pointer"
+            className="ml-auto shrink-0 rounded-full border border-[#E6E4DE] px-3 py-1.5 text-[12px] font-semibold text-[#6E6C7C] hover:border-[#f1c9bd] hover:bg-[#fdf1ed] hover:text-[#c9694f] transition-colors cursor-pointer"
           >
             Revoke
           </button>

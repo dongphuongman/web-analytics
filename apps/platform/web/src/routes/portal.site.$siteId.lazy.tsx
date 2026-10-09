@@ -64,7 +64,7 @@ import { GoalsDrawer } from '@/components/analytics/GoalsDrawer';
 import { FunnelFormModal } from '@/components/analytics/FunnelFormModal';
 import { FunnelsDrawer } from '@/components/analytics/FunnelsDrawer';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
-import { PeriodPicker } from '@/components/layout/PeriodPicker';
+import { PERIOD_NAMES, PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 import { publicStatsApi, type StatsApi } from '@/lib/publicApi';
 import type { SiteSearch } from './portal.site.$siteId';
@@ -518,19 +518,15 @@ const LINK_TABS = [
   { key: 'download', label: 'Downloads' },
 ];
 
-const PERIOD_LABELS: Record<string, string> = {
-  today: 'Today',
-  yesterday: 'Yesterday',
-  '7d': 'Last 7 days',
-  '30d': 'Last 30 days',
-  '90d': 'Last 90 days',
-  '6m': 'Last 6 months',
-  '1y': 'Last year',
-  all: 'All time',
-};
+/** Six tiles: one row from lg, two rows of three below it. Each tile draws
+ *  its own left divider, so the first of each row drops it and the second
+ *  row gets a top hairline. */
+const METRIC_GRID =
+  'grid grid-cols-3 border-b border-[#F3F0EA] lg:grid-cols-6 max-lg:[&>*:nth-child(3n+1)]:border-l-0 max-lg:[&>*:nth-child(n+4)]:border-t max-lg:[&>*:nth-child(n+4)]:border-t-[#F1EFEA]';
 
 function MetricTile({
   label,
+  shortLabel,
   value,
   change,
   active,
@@ -538,6 +534,8 @@ function MetricTile({
   higherIsWorse,
 }: {
   label: string;
+  /** Phone-width label, where the full one would truncate. */
+  shortLabel?: string;
   value: string;
   change: number | null;
   active?: boolean;
@@ -552,16 +550,23 @@ function MetricTile({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        'relative flex flex-col items-start gap-[7px] border-l border-[#F1EFEA] px-[22px] py-5 text-left transition-colors first:border-l-0',
+        'relative flex min-w-0 flex-col items-start gap-[7px] border-l border-[#F1EFEA] px-3.5 py-4 text-left transition-colors first:border-l-0 sm:px-[22px] sm:py-5',
         onClick && 'cursor-pointer hover:bg-[#FBFAF8]'
       )}
     >
-      <span className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#9B9590]">
-        {label}
+      <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-[0.07em] text-[#9B9590] sm:text-[10.5px] sm:tracking-[0.09em]">
+        {shortLabel ? (
+          <>
+            <span className="sm:hidden">{shortLabel}</span>
+            <span className="max-sm:hidden">{label}</span>
+          </>
+        ) : (
+          label
+        )}
       </span>
       <span
         className={cn(
-          'text-[25px] leading-none tracking-[-0.02em] tabular-nums',
+          'text-[21px] sm:text-[25px] leading-none tracking-[-0.02em] tabular-nums',
           active || !onClick ? 'font-bold text-[#3D3B4F]' : 'font-semibold text-[#6E6C7C]'
         )}
       >
@@ -587,7 +592,7 @@ function MetricTile({
       {/* Active indicator: the same ink underline as the nav tabs */}
       <span
         className={cn(
-          'absolute inset-x-[22px] bottom-0 h-[2px] rounded-t-full bg-[#3D3B4F] transition-opacity',
+          'absolute inset-x-3.5 bottom-0 h-[2px] rounded-t-full bg-[#3D3B4F] transition-opacity sm:inset-x-[22px]',
           active ? 'opacity-100' : 'opacity-0'
         )}
       />
@@ -627,11 +632,11 @@ function ChartCard({
           Failed to load stats
         </p>
       ) : statsLoading || !stats ? (
-        <div className="grid grid-cols-2 border-b border-[#F3F0EA] sm:grid-cols-3 lg:grid-cols-6">
+        <div className={METRIC_GRID}>
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className="flex flex-col gap-2 border-l border-[#F5F2EC] px-[22px] py-5 first:border-l-0"
+              className="flex flex-col gap-2 border-l border-[#F5F2EC] px-3.5 py-4 first:border-l-0 sm:px-[22px] sm:py-5"
             >
               <div className="h-3 w-20 animate-pulse rounded bg-muted" />
               <div className="h-6 w-14 animate-pulse rounded bg-muted" />
@@ -639,9 +644,10 @@ function ChartCard({
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 border-b border-[#F3F0EA] sm:grid-cols-3 lg:grid-cols-6">
+        <div className={METRIC_GRID}>
           <MetricTile
             label="Unique Visitors"
+            shortLabel="Visitors"
             value={formatNumber(stats.visitors)}
             change={stats.visitorsChange}
             active={metric === 'visitors'}
@@ -649,6 +655,7 @@ function ChartCard({
           />
           <MetricTile
             label="Total Pageviews"
+            shortLabel="Pageviews"
             value={formatNumber(stats.pageviews)}
             change={stats.pageviewsChange}
             active={metric === 'pageviews'}
@@ -661,15 +668,22 @@ function ChartCard({
             active={metric === 'sessions'}
             onClick={() => onMetricChange('sessions')}
           />
-          <MetricTile label="Views / Visit" value={viewsPerVisit} change={null} />
+          <MetricTile
+            label="Views / Visit"
+            shortLabel="Views/Visit"
+            value={viewsPerVisit}
+            change={null}
+          />
           <MetricTile
             label="Bounce Rate"
+            shortLabel="Bounce"
             value={`${stats.bounceRate}%`}
             change={stats.bounceRateChange}
             higherIsWorse
           />
           <MetricTile
             label="Visit Duration"
+            shortLabel="Duration"
             value={formatDuration(stats.avgDuration ?? 0)}
             change={stats.avgDuration || stats.avgDurationChange ? stats.avgDurationChange : null}
           />
@@ -677,7 +691,7 @@ function ChartCard({
       )}
 
       {/* Chart */}
-      <div className="px-6 pb-4 pt-5">
+      <div className="px-4 pb-4 pt-5 sm:px-6">
         <div className="mb-3.5 flex items-baseline justify-between">
           <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
             {metric === 'visitors'
@@ -686,7 +700,7 @@ function ChartCard({
                 ? 'Total Pageviews'
                 : 'Visits'}
           </h3>
-          <span className="text-[12px] text-[#B5B0AA]">{PERIOD_LABELS[period] ?? period}</span>
+          <span className="text-[12px] text-[#B5B0AA]">{PERIOD_NAMES[period]}</span>
         </div>
         <TimeseriesChart
           data={timeseries}
@@ -704,14 +718,15 @@ function ChartCard({
  *  dividers - the cluster must NOT clip (the dropdowns inside render
  *  absolutely within it), so slots round themselves. */
 const SEG_BTN =
-  'flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#9B9590] hover:bg-[#F2F1ED] hover:text-foreground transition-colors cursor-pointer';
+  'flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-full text-[#9B9590] hover:bg-[#F2F1ED] hover:text-foreground transition-colors cursor-pointer';
 
-/** CSS-only tooltip for the cluster icons (works around any wrapper). */
+/** CSS-only tooltip for the cluster icons (works around any wrapper). Off on
+ *  touch screens, where a tap leaves it stuck open. */
 function IconTip({ label, children }: { label: string; children: ReactNode }): ReactElement {
   return (
     <span className="group relative flex">
       {children}
-      <span className="pointer-events-none absolute -bottom-8 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#3D3B4F] px-2.5 py-1 text-[11px] font-medium text-[#F9F8F6] opacity-0 transition-opacity delay-150 duration-100 group-hover:opacity-100">
+      <span className="pointer-events-none absolute -bottom-8 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#3D3B4F] px-2.5 py-1 text-[11px] font-medium text-[#F9F8F6] opacity-0 transition-opacity delay-150 duration-100 group-hover:opacity-100 [@media(hover:none)]:hidden">
         {label}
       </span>
     </span>
@@ -799,9 +814,11 @@ function SegmentsMenu({
             <Bookmark className="w-[15px] h-[15px]" />
           </button>
         </DropdownMenuTrigger>
+        {/* On phones the toolbar sits at the left edge, so the menu opens
+            rightward from the button instead of hanging off-screen. */}
         <DropdownMenuContent
           align="end"
-          className="w-64 rounded-2xl bg-white border-none shadow-float"
+          className="w-64 rounded-2xl bg-white border-none shadow-float max-sm:left-0 max-sm:right-auto"
         >
           <DropdownMenuLabel className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
             Segments
@@ -845,7 +862,7 @@ function SegmentsMenu({
                     e.stopPropagation();
                     deleteSegment.mutate(segment.id);
                   }}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#B5B0AA] opacity-0 transition-all hover:text-[#e07a5f] group-hover:opacity-100 cursor-pointer"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#B5B0AA] opacity-0 transition-all hover:text-[#e07a5f] group-hover:opacity-100 [@media(hover:none)]:opacity-100 cursor-pointer"
                   title="Delete segment"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -1556,14 +1573,17 @@ export function SiteDashboard({
     | undefined;
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
       <div className="space-y-6">
         {/* Header: identity + toolbar, sticky under the 56px app header so
             period, refresh, and segments stay reachable mid-page. Negative
             margins stretch the ground-colored backdrop across the content
             column so panels slide cleanly beneath it. */}
-        <div className="sticky top-14 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-[#F9F8F6] px-4 py-3 sm:-mx-6 sm:px-6">
-          <div className="flex items-center gap-3">
+        {/* Pinned only with room to spare: on phones it stacks to two rows,
+            and on a landscape phone it would cover half the screen, so in
+            both cases it scrolls away. */}
+        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-[#F9F8F6] px-4 py-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
+          <div className="flex min-w-0 items-center gap-3">
             {!shared && (
               <Link
                 to="/portal/sites"
@@ -1584,12 +1604,12 @@ export function SiteDashboard({
                 <Globe className="h-[18px] w-[18px] text-[#6E6C7C]" strokeWidth={1.7} />
               )}
             </span>
-            <div>
-              <h1 className="text-[19px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
+            <div className="min-w-0">
+              <h1 className="truncate text-[19px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
                 {site?.name || 'Analytics'}
               </h1>
-              <div className="mt-1 flex items-center gap-2.5 text-[12.5px]">
-                {site?.domain && <span className="text-[#9B9590]">{site.domain}</span>}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px]">
+                {site?.domain && <span className="truncate text-[#9B9590]">{site.domain}</span>}
                 {!shared && site?.public && (
                   <span className="rounded-[6px] bg-[#28E99F]/20 px-1.5 py-0.5 text-[11px] font-medium text-[#3D3B4F]">
                     Public
@@ -1608,7 +1628,7 @@ export function SiteDashboard({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
             {/* Actions fused into one segmented cluster; Delete lives in the
                 overflow so it never sits one slip away from Refresh. */}
             <div className="flex items-center gap-0.5 rounded-full border border-[#E6E4DE] bg-white p-0.5">
@@ -2021,7 +2041,7 @@ export function SiteDashboard({
             siteId={siteId}
             siteLabel={site?.domain}
             stats={(goalStatsQ.data as any)?.data}
-            periodLabel={PERIOD_LABELS[period] ?? period}
+            periodLabel={PERIOD_NAMES[period]}
             onAdd={() => {
               setGoalsOpen(false);
               setGoalForm({ goal: null });

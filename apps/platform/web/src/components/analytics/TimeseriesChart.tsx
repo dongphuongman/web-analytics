@@ -135,7 +135,7 @@ export function TimeseriesChart({
 
   if (isError) {
     return (
-      <div className={`flex h-[300px] flex-col items-center justify-center ${frame}`}>
+      <div className={`flex h-[200px] sm:h-[300px] flex-col items-center justify-center ${frame}`}>
         <AlertCircle className="w-5 h-5 text-[#e07a5f]/60 mb-2" strokeWidth={1.5} />
         <p className="text-[13px] text-[#e07a5f]">Failed to load chart data</p>
       </div>
@@ -144,9 +144,9 @@ export function TimeseriesChart({
 
   if (isLoading || !data) {
     return (
-      <div className={`h-[300px] p-5 ${frame}`}>
+      <div className={`h-[200px] sm:h-[300px] p-5 ${frame}`}>
         {!bare && <div className="h-4 w-24 rounded bg-muted animate-pulse" />}
-        <div className="mt-5 flex h-[210px] items-end gap-2">
+        <div className="mt-5 flex h-[130px] items-end gap-2 sm:h-[210px]">
           {[40, 65, 50, 80, 55, 90, 70, 60, 85, 45, 75, 95].map((h, i) => (
             <div
               key={i}
@@ -161,7 +161,7 @@ export function TimeseriesChart({
 
   if (data.length === 0) {
     return (
-      <div className={`flex h-[300px] flex-col items-center justify-center ${frame}`}>
+      <div className={`flex h-[200px] sm:h-[300px] flex-col items-center justify-center ${frame}`}>
         <TrendingUp className="w-5 h-5 text-[#B5B0AA] mb-2" strokeWidth={1.5} />
         <p className="text-[13px] font-medium text-[#9B9590]">No data yet</p>
         <p className="text-[12px] text-[#B5B0AA] mt-1">
@@ -174,60 +174,63 @@ export function TimeseriesChart({
   const gradientId = `colorMetric-${metric}`;
   const last = data[data.length - 1];
 
+  // Shorter on phones: at 260px the chart alone fills a third of the screen.
   const chart = (
-    <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={data}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={fill} stopOpacity={0.09} />
-            <stop offset="100%" stopColor={fill} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid stroke="#F1EFEA" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={formatAxis}
-          stroke="#B5B0AA"
-          fontSize={11.5}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis stroke="#B5B0AA" fontSize={11.5} tickLine={false} axisLine={false} width={40} />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: '#3D3B4F',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '12px',
-            color: '#F9F8F6',
-            boxShadow: '0 8px 20px rgba(61,59,79,0.25)',
-          }}
-          labelStyle={{ color: '#C9C3BC', marginBottom: 2 }}
-          itemStyle={{ color: '#F9F8F6', fontWeight: 700 }}
-          cursor={{ stroke: '#3D3B4F', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
-          labelFormatter={formatTooltip}
-        />
-        <Area
-          type="monotone"
-          dataKey={metric}
-          stroke={stroke}
-          strokeWidth={2}
-          fillOpacity={1}
-          fill={`url(#${gradientId})`}
-          activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#fff' }}
-        />
-        {/* Always-visible endpoint dot anchoring "now" */}
-        <ReferenceDot
-          x={last.date}
-          y={last[metric]}
-          r={4}
-          fill={stroke}
-          stroke="#fff"
-          strokeWidth={2}
-          isFront
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="h-[200px] sm:h-[260px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={fill} stopOpacity={0.09} />
+              <stop offset="100%" stopColor={fill} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#F1EFEA" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatAxis}
+            stroke="#B5B0AA"
+            fontSize={11.5}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis stroke="#B5B0AA" fontSize={11.5} tickLine={false} axisLine={false} width={40} />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: '#3D3B4F',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '12px',
+              color: '#F9F8F6',
+              boxShadow: '0 8px 20px rgba(61,59,79,0.25)',
+            }}
+            labelStyle={{ color: '#C9C3BC', marginBottom: 2 }}
+            itemStyle={{ color: '#F9F8F6', fontWeight: 700 }}
+            cursor={{ stroke: '#3D3B4F', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
+            labelFormatter={formatTooltip}
+          />
+          <Area
+            type="monotone"
+            dataKey={metric}
+            stroke={stroke}
+            strokeWidth={2}
+            fillOpacity={1}
+            fill={`url(#${gradientId})`}
+            activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#fff' }}
+          />
+          {/* Always-visible endpoint dot anchoring "now" */}
+          <ReferenceDot
+            x={last.date}
+            y={last[metric]}
+            r={4}
+            fill={stroke}
+            stroke="#fff"
+            strokeWidth={2}
+            isFront
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 
   if (bare) return chart;

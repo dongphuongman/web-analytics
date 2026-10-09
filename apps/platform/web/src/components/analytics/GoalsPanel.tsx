@@ -71,7 +71,7 @@ export function GoalsPanel({
   const sorted = [...(goals ?? [])].sort((a, b) => b.uniques - a.uniques);
 
   return (
-    <div className={cn('rounded-[20px] bg-white p-6 shadow-float', className)}>
+    <div className={cn('rounded-[20px] bg-white p-5 shadow-float sm:p-6', className)}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Goals</h3>
         <div className="flex items-center gap-2">
@@ -212,14 +212,17 @@ export function GoalsPanel({
                       )}
                     </div>
                   </div>
-                  <p className="mt-2.5 text-[24px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
-                    {goal.conversionRate}%
-                  </p>
-                  <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-[#E6E4DE]">
-                    <div
-                      className="h-full rounded-full bg-[#3D3B4F]"
-                      style={{ width: `${Math.min(goal.conversionRate, 100)}%` }}
-                    />
+                  {/* Phones: rate beside its bar, so a stack of goals stays short. */}
+                  <div className="mt-2.5 flex items-center gap-3 sm:block">
+                    <p className="shrink-0 text-[20px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#3D3B4F] sm:text-[24px]">
+                      {goal.conversionRate}%
+                    </p>
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#E6E4DE] sm:mt-2.5">
+                      <div
+                        className="h-full rounded-full bg-[#3D3B4F]"
+                        style={{ width: `${Math.min(goal.conversionRate, 100)}%` }}
+                      />
+                    </div>
                   </div>
                   <p className="mt-2 text-[11.5px] tabular-nums text-[#9B9590]">
                     {formatNumber(goal.uniques)} uniques · {formatNumber(goal.events)} total
@@ -230,7 +233,7 @@ export function GoalsPanel({
             {onAdd && (
               <button
                 onClick={onAdd}
-                className="flex min-h-[124px] items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-dashed border-[#E6E4DE] text-[12.5px] font-semibold text-[#9B9590] hover:border-[#cbcad4] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                className="hidden min-h-[124px] items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] border-dashed sm:flex border-[#E6E4DE] text-[12.5px] font-semibold text-[#9B9590] hover:border-[#cbcad4] hover:text-[#3D3B4F] transition-colors cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
                 New goal

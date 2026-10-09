@@ -48,7 +48,11 @@ export function SiteTileStats({
       {items.map(item => (
         <div key={item.label} className="rounded-xl bg-[#F2F1ED] px-2.5 py-2">
           <div className="mb-1.5 flex items-center gap-1.5">
-            <item.icon className="h-3.5 w-3.5 text-[#3D3B4F]" strokeWidth={1.8} />
+            {/* Below 360px the label alone fills the chip. */}
+            <item.icon
+              className="h-3.5 w-3.5 shrink-0 text-[#3D3B4F] max-[359px]:hidden"
+              strokeWidth={1.8}
+            />
             <span className="text-[10.5px] font-semibold leading-none text-[#9B9590]">
               {item.label}
             </span>

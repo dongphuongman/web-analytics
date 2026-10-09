@@ -44,7 +44,9 @@ export function WorkspaceSwitcher(): ReactElement | null {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[13.5px] font-medium text-[#3D3B4F] transition-colors hover:bg-[#F2F2F0] focus:outline-none focus-visible:bg-[#F2F2F0]">
-            <span className="max-w-[180px] truncate">{current.name}</span>
+            <span className="max-w-[72px] truncate min-[360px]:max-w-[140px] sm:max-w-[180px]">
+              {current.name}
+            </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#A3A1AB]" />
           </button>
         </DropdownMenuTrigger>
