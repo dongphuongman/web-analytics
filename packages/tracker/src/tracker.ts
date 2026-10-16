@@ -76,7 +76,49 @@
     return (typeof v === 'string' ? v : '').slice(0, max);
   }
 
+  // ---- Campaign (UTM) tags ----
+  // utm_* parameters are only on the landing URL. They are kept for the rest
+  // of the session so later pageviews and events stay tagged, and a UTM
+  // filter sees the whole visit (goals, bounce, duration), not just its first
+  // pageview. Saved as [sessionId, source, medium, campaign]: tags only apply
+  // while that session lasts, so a new session starts untagged. A new tagged
+  // landing replaces the whole set. Storage gets the same guards as the
+  // session id, and whatever comes back from it is validated.
+  const UTM_KEY = '_pb_u';
+  let memoryUtm: unknown[] = [];
+  function rememberCampaign(): void {
+    const params = new URLSearchParams(location.search);
+    const tags = [
+      clip(params.get('utm_source'), 256),
+      clip(params.get('utm_medium'), 256),
+      clip(params.get('utm_campaign'), 256),
+    ];
+    if (!tags[0] && !tags[1] && !tags[2]) return;
+    memoryUtm = [getSessionId()].concat(tags);
+    try {
+      window.sessionStorage.setItem(UTM_KEY, JSON.stringify(memoryUtm));
+    } catch {
+      /* storage blocked - memoryUtm still covers this page */
+    }
+  }
+  function campaignFor(sid: unknown): unknown[] {
+    let saved = memoryUtm;
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(UTM_KEY) || '[]');
+      if (Array.isArray(stored) && stored.length) saved = stored;
+    } catch {
+      /* storage blocked or the value was tampered with */
+    }
+    return saved[0] === sid ? saved : [];
+  }
+
   function sendRequest(payload: Record<string, unknown>): void {
+    const tags = campaignFor(payload.sid);
+    if (tags.length) {
+      payload.us = clip(tags[1], 256);
+      payload.um = clip(tags[2], 256);
+      payload.uc = clip(tags[3], 256);
+    }
     const body = JSON.stringify(payload);
     fetch(endpoint, {
       method: 'POST',
@@ -139,8 +181,9 @@
     if (isSPANavigation && lastPage) flushEngagement(lastPage);
     lastPage = currentPath();
     engagedStart = Date.now();
-
-    const params = new URLSearchParams(location.search);
+    // A tagged URL (landing or SPA route) sets the campaign; sendRequest
+    // adds the session's tags to this pageview and everything after it.
+    rememberCampaign();
 
     sendRequest({
       t: 'pageview',
@@ -150,9 +193,6 @@
       r: clip(document.referrer, 2048),
       sw: screen.width,
       sid: getSessionId(),
-      us: clip(params.get('utm_source'), 256),
-      um: clip(params.get('utm_medium'), 256),
-      uc: clip(params.get('utm_campaign'), 256),
     });
   }
 
@@ -162,6 +202,10 @@
   // so early CTA clicks and hydration-effect events are never lost.
   const pending: IArguments[] =
     typeof w.traks === 'function' && Array.isArray(w.traks.q) ? w.traks.q : [];
+  // Queued calls (and the 404 event below) go out before the first pageview,
+  // so record a tagged landing now. Skipped while prerendering: page() does
+  // it on activation, and a prerender may never be shown.
+  if (!(document as Document & { prerendering?: boolean }).prerendering) rememberCampaign();
   // Never throw into the customer's code: a circular props object or a bad
   // queued call must not break their click handler or router.
   w.traks = function (name: string, props?: Record<string, unknown>, value?: number): void {

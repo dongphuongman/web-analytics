@@ -9,6 +9,7 @@ ships separately and is not listed here.
 ### Changed
 
 - The dashboard works on phones and tablets. The header tabs fold into a menu, the period picker becomes a single dropdown, the metric tiles sit in two rows of three, funnels show one bar per step, and nothing scrolls sideways down to 320px wide. Form fields no longer make iOS zoom in when you tap them.
+- UTM tags now last the whole visit. Before, only the landing pageview carried a visit's UTM source, medium and campaign; now every pageview, custom event and engagement ping in that session carries them too (a session ends after 30 minutes idle, and a new tagged link replaces the tags). Filtering by a UTM value now shows the whole visit's pages, goals, bounce rate and duration. From this update onwards, UTM-filtered views show more pageviews and conversions than before; visitor counts per UTM value are unchanged. Visitors pick up the new tracker within a day (the script is cached for up to an hour, then refreshed in the background).
 
 ### Fixed
 
