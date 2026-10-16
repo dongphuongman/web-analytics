@@ -6,6 +6,15 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Changed
+
+- The dashboard works on phones and tablets. The header tabs fold into a menu, the period picker becomes a single dropdown, the metric tiles sit in two rows of three, funnels show one bar per step, and nothing scrolls sideways down to 320px wide. Form fields no longer make iOS zoom in when you tap them.
+
+### Fixed
+
+- On touch screens, a saved segment's delete button was invisible because it only appeared on hover. It now shows on touch screens.
+- The timezone picker opens scrolled to the current timezone instead of the top of the list.
+
 ## 0.1.43 - 2026-09-23
 
 ### Changed

@@ -24,7 +24,7 @@ export function LivePill({ count, status, onClick }: LivePillProps): ReactElemen
       onClick={onClick}
       title="Open live view"
       className={cn(
-        'group -my-1 inline-flex h-[26px] items-center gap-1.5 rounded-full border border-transparent py-0 pl-2 pr-1.5 text-[12.5px] font-semibold transition-colors',
+        'group -my-1 inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent py-0 pl-2 pr-1.5 text-[12.5px] font-semibold transition-colors',
         'hover:border-[#E6E4DE] hover:bg-[#F2F1ED] focus-visible:border-[#E6E4DE] focus-visible:bg-[#F2F1ED] focus-visible:outline-none',
         quiet ? 'text-[#9B9590]' : live ? 'text-[#3F7A50]' : 'text-[#6E6C7C]'
       )}

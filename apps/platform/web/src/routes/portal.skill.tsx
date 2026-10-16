@@ -62,7 +62,7 @@ function SkillPage(): ReactElement {
             .
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Button variant="ghost" onClick={() => void copy(markdown, 'md')} className="text-[13px]">
             {copied === 'md' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copied === 'md' ? 'Copied' : 'Copy markdown'}

@@ -414,8 +414,9 @@ export function FunnelFormModal({
                                 'shadow-[inset_0_0_0_1.5px_var(--destructive)]'
                             )}
                           >
+                            {/* The domain prefix is context; phones keep the room for the path. */}
                             {domain && (
-                              <span className="flex h-full max-w-[40%] shrink-0 items-center truncate border-r border-[#E6E4DE] pl-3 pr-2 font-mono text-[11px] text-[#9B9590]">
+                              <span className="flex h-full max-w-[40%] shrink-0 items-center truncate max-sm:hidden border-r border-[#E6E4DE] pl-3 pr-2 font-mono text-[11px] text-[#9B9590]">
                                 {domain}
                               </span>
                             )}

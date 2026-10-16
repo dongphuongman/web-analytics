@@ -84,8 +84,8 @@ function LiveModalBody({
         }));
 
   return (
-    <div className="p-6">
-      {/* Title row */}
+    <div className="p-5 sm:p-6">
+      {/* Title row (phones drop the domain and the window note to fit) */}
       <div className="flex items-center justify-between gap-4 pr-9">
         <div className="flex min-w-0 items-center gap-3">
           <span className="relative flex h-[8px] w-[8px]">
@@ -100,7 +100,9 @@ function LiveModalBody({
             />
           </span>
           <h2 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Live</h2>
-          {domain && <span className="truncate text-[12.5px] text-[#9B9590]">{domain}</span>}
+          {domain && (
+            <span className="truncate text-[12.5px] text-[#9B9590] max-sm:hidden">{domain}</span>
+          )}
           <span className="h-4 w-px bg-[#E6E4DE]" />
           {count === null ? (
             <span className="h-5 w-10 animate-pulse rounded bg-muted" />
@@ -109,7 +111,9 @@ function LiveModalBody({
               {formatNumber(count)}
             </span>
           )}
-          <span className="text-[12.5px] text-[#9B9590]">online now · last 5 min</span>
+          <span className="whitespace-nowrap text-[12.5px] text-[#9B9590]">
+            online now<span className="max-sm:hidden"> · last 5 min</span>
+          </span>
         </div>
         <span
           className={cn(

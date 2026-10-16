@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { BarChart3, AlertCircle } from 'lucide-react';
 import { cn, formatNumber } from '@/lib/utils';
 
@@ -45,7 +45,8 @@ interface PanelCardProps {
   onItemClick?: (item: PanelItem) => void;
 }
 
-/** Pill tab switcher shared by the list panels. */
+/** Pill tab switcher shared by the list panels. On narrow cards the strip
+ *  scrolls sideways; whichever edge hides a tab fades out to say so. */
 export function PanelTabs({
   tabs,
   activeTab,
@@ -55,14 +56,54 @@ export function PanelTabs({
   activeTab?: string;
   onTabChange?: (key: string) => void;
 }): ReactElement {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = (): void => {
+      const left = el.scrollLeft > 1;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setEdges(e => (e.left === left && e.right === right ? e : { left, right }));
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, []);
+
+  const fade = 'transparent, black 24px';
+  const mask =
+    edges.left || edges.right
+      ? `linear-gradient(to right, ${edges.left ? fade : 'black, black'}, black calc(100% - 24px), ${
+          edges.right ? 'transparent' : 'black'
+        })`
+      : undefined;
+
   return (
-    <div className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
+    <div
+      ref={ref}
+      style={{ maskImage: mask, WebkitMaskImage: mask }}
+      className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-muted p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {tabs.map(tab => (
         <button
           key={tab.key}
-          onClick={() => onTabChange?.(tab.key)}
+          onClick={e => {
+            onTabChange?.(tab.key);
+            e.currentTarget.scrollIntoView({
+              block: 'nearest',
+              inline: 'nearest',
+              behavior: 'smooth',
+            });
+          }}
           className={cn(
-            'rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer',
+            'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer',
             activeTab === tab.key
               ? 'bg-white text-[#3D3B4F]'
               : 'text-[#9B9590] hover:text-[#6b6560]'
@@ -100,12 +141,12 @@ export function PanelCard({
   return (
     <div
       className={cn(
-        'flex min-h-[22rem] flex-col rounded-[20px] bg-white p-6 shadow-float',
+        'flex flex-col rounded-[20px] bg-white p-5 shadow-float sm:p-6 lg:min-h-[22rem]',
         className
       )}
     >
       {/* Header: title + tabs */}
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
         <h3 className="truncate text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
           {title}
         </h3>
@@ -116,7 +157,7 @@ export function PanelCard({
       </div>
 
       {isError ? (
-        <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="flex flex-1 flex-col items-center justify-center py-8 lg:py-0">
           <AlertCircle className="mb-2 h-5 w-5 text-[#e07a5f]/60" strokeWidth={1.5} />
           <p className="text-[13px] text-[#e07a5f]">Couldn&rsquo;t load this panel</p>
           {onRetry && (
@@ -138,7 +179,7 @@ export function PanelCard({
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="flex flex-1 flex-col items-center justify-center py-8 lg:py-0">
           <BarChart3 className="mb-2 h-5 w-5 text-[#B5B0AA]" strokeWidth={1.5} />
           <p className="text-[13px] font-medium text-[#9B9590]">{emptyText}</p>
           <p className="mt-1 text-[12px] text-[#B5B0AA]">Data will appear once visitors arrive</p>

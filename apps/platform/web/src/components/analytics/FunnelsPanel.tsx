@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactElement } from 'react';
+import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Filter,
@@ -53,6 +53,62 @@ function stepLabel(step: { target: string; propKey?: string; propValue?: string 
  * what was lost since the previous step. Under each column: sessions,
  * step-over-step conversion, and the drop. Overall conversion in the header.
  */
+type StatStep = FunnelStat['steps'][number];
+
+/** Step number, label and type chip; `children` trail at the end of the row. */
+function StepHeading({
+  step,
+  index,
+  className,
+  children,
+}: {
+  step: StatStep;
+  index: number;
+  className?: string;
+  children?: ReactNode;
+}): ReactElement {
+  const label = stepLabel(step);
+  return (
+    <div className={cn('flex items-center gap-1.5', className)} title={label}>
+      <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#F2F1ED] font-mono text-[10px] font-semibold text-[#6E6C7C]">
+        {index + 1}
+      </span>
+      <span className="min-w-0 truncate text-[12.5px] text-[#3D3B4F]">{label}</span>
+      <TypeChip type={step.type} className="shrink-0" />
+      {children}
+    </div>
+  );
+}
+
+/** "49% of previous · −630" under a step, or "entered" for the first. */
+function StepRate({
+  step,
+  prev,
+  className,
+}: {
+  step: StatStep;
+  prev: StatStep | null;
+  className?: string;
+}): ReactElement {
+  return (
+    <p className={cn('text-[11.5px] tabular-nums text-[#9B9590]', className)}>
+      {prev ? (
+        <>
+          {step.rateFromPrev}% of previous
+          {prev.sessions > step.sessions && (
+            <>
+              {' · '}
+              <span className="text-[#e07a5f]">−{formatNumber(prev.sessions - step.sessions)}</span>
+            </>
+          )}
+        </>
+      ) : (
+        'entered'
+      )}
+    </p>
+  );
+}
+
 export function FunnelsPanel({
   siteId,
   funnels,
@@ -93,7 +149,7 @@ export function FunnelsPanel({
     hasEntries && stat ? Math.min(Math.max(stat.steps[i].rateFromFirst, 0), 100) : 0;
 
   return (
-    <div className={cn('rounded-[20px] bg-white p-6 shadow-float', className)}>
+    <div className={cn('rounded-[20px] bg-white p-5 shadow-float sm:p-6', className)}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h3 className="mr-1 text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Funnels</h3>
@@ -108,7 +164,7 @@ export function FunnelsPanel({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  className="max-h-80 w-72 overflow-y-auto border-0 p-1.5 shadow-float-lg"
+                  className="max-h-80 w-72 max-w-[calc(100vw-8rem)] overflow-y-auto border-0 p-1.5 shadow-float-lg"
                 >
                   <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
                     Show funnel
@@ -164,7 +220,12 @@ export function FunnelsPanel({
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52 border-0 p-1.5 shadow-float-lg">
+                {/* Phones: the button sits near the card's right edge, so the menu
+                    opens leftward from it. */}
+                <DropdownMenuContent
+                  align="start"
+                  className="w-52 border-0 p-1.5 shadow-float-lg max-sm:left-auto max-sm:right-0"
+                >
                   <DropdownMenuItem
                     onClick={() => onEdit(selected)}
                     className="rounded-[10px] text-[12.5px] text-[#3D3B4F] hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]"
@@ -269,78 +330,92 @@ export function FunnelsPanel({
           )}
         </div>
       ) : isLoading || !stat ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           {[0, 1, 2, 3].map(i => (
-            <div key={i}>
-              <div className="h-[140px] animate-pulse rounded-xl bg-muted" />
+            <div key={i} className={i > 1 ? 'max-sm:hidden' : undefined}>
+              <div className="h-[60px] animate-pulse rounded-xl bg-muted sm:h-[140px]" />
               <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded bg-muted" />
               <div className="mt-1.5 h-6 w-1/2 animate-pulse rounded bg-muted" />
             </div>
           ))}
         </div>
       ) : (
-        <ol
-          className="grid grid-cols-2 gap-x-3 gap-y-5 sm:[grid-template-columns:var(--funnel-cols)]"
-          style={
-            {
-              '--funnel-cols': `repeat(${stat.steps.length}, minmax(0, 1fr))`,
-            } as CSSProperties
-          }
-        >
-          {stat.steps.map((step, i) => {
-            const prev = i > 0 ? stat.steps[i - 1] : null;
-            const height = heightOf(i);
-            const label = stepLabel(step);
-            return (
-              <li key={`${step.type}-${step.target}-${i}`} className="min-w-0">
-                <div className="relative h-[140px] overflow-hidden rounded-xl bg-[#F9F8F6]">
-                  {prev && (
+        <>
+          {/* Phones: the same funnel turned on its side - one row per step, so
+            the drop-off still reads in order instead of wrapping into a
+            2x2 grid. The hatched track is the previous step's level. */}
+          <ol className="space-y-3.5 sm:hidden">
+            {stat.steps.map((step, i) => {
+              const prev = i > 0 ? stat.steps[i - 1] : null;
+              return (
+                <li key={`${step.type}-${step.target}-${i}`} className="min-w-0">
+                  <StepHeading step={step} index={i} className="min-w-0">
+                    <span className="ml-auto shrink-0 pl-2 text-[15px] font-bold tabular-nums text-[#3D3B4F]">
+                      {formatNumber(step.sessions)}
+                    </span>
+                  </StepHeading>
+                  <div className="relative mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#F9F8F6]">
+                    {prev && (
+                      <div
+                        aria-hidden
+                        className="absolute inset-y-0 left-0 bg-[repeating-linear-gradient(135deg,#f4e3dd_0_5px,#fbeee9_5px_10px)]"
+                        style={{ width: `${heightOf(i - 1)}%` }}
+                      />
+                    )}
                     <div
                       aria-hidden
-                      className="absolute inset-x-0 bottom-0 bg-[repeating-linear-gradient(135deg,#f4e3dd_0_5px,#fbeee9_5px_10px)]"
-                      style={{ height: `${heightOf(i - 1)}%` }}
+                      className="absolute inset-y-0 left-0 rounded-full bg-[#3D3B4F]"
+                      style={{
+                        width: `${heightOf(i)}%`,
+                        minWidth: step.sessions > 0 && hasEntries ? 4 : 0,
+                      }}
                     />
-                  )}
-                  <div
-                    aria-hidden
-                    className="absolute inset-x-0 bottom-0 rounded-t-lg bg-[#3D3B4F]"
-                    style={{
-                      height: `${height}%`,
-                      minHeight: step.sessions > 0 && hasEntries ? 2 : 0,
-                    }}
-                  />
-                </div>
-                <div className="mt-2.5 flex min-w-0 items-center gap-1.5" title={label}>
-                  <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#F2F1ED] font-mono text-[10px] font-semibold text-[#6E6C7C]">
-                    {i + 1}
-                  </span>
-                  <span className="truncate text-[12.5px] text-[#3D3B4F]">{label}</span>
-                  <TypeChip type={step.type} className="shrink-0" />
-                </div>
-                <p className="mt-1 text-[20px] font-bold leading-tight tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
-                  {formatNumber(step.sessions)}
-                </p>
-                <p className="text-[11.5px] tabular-nums text-[#9B9590]">
-                  {prev ? (
-                    <>
-                      {step.rateFromPrev}% of previous
-                      {prev.sessions > step.sessions && (
-                        <>
-                          {' · '}
-                          <span className="text-[#e07a5f]">
-                            −{formatNumber(prev.sessions - step.sessions)}
-                          </span>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    'entered'
-                  )}
-                </p>
-              </li>
-            );
-          })}
-        </ol>
+                  </div>
+                  <StepRate step={step} prev={prev} className="mt-1" />
+                </li>
+              );
+            })}
+          </ol>
+          <ol
+            className="hidden gap-x-3 gap-y-5 sm:grid sm:[grid-template-columns:var(--funnel-cols)]"
+            style={
+              {
+                '--funnel-cols': `repeat(${stat.steps.length}, minmax(0, 1fr))`,
+              } as CSSProperties
+            }
+          >
+            {stat.steps.map((step, i) => {
+              const prev = i > 0 ? stat.steps[i - 1] : null;
+              const height = heightOf(i);
+              return (
+                <li key={`${step.type}-${step.target}-${i}`} className="min-w-0">
+                  <div className="relative h-[140px] overflow-hidden rounded-xl bg-[#F9F8F6]">
+                    {prev && (
+                      <div
+                        aria-hidden
+                        className="absolute inset-x-0 bottom-0 bg-[repeating-linear-gradient(135deg,#f4e3dd_0_5px,#fbeee9_5px_10px)]"
+                        style={{ height: `${heightOf(i - 1)}%` }}
+                      />
+                    )}
+                    <div
+                      aria-hidden
+                      className="absolute inset-x-0 bottom-0 rounded-t-lg bg-[#3D3B4F]"
+                      style={{
+                        height: `${height}%`,
+                        minHeight: step.sessions > 0 && hasEntries ? 2 : 0,
+                      }}
+                    />
+                  </div>
+                  <StepHeading step={step} index={i} className="mt-2.5 min-w-0" />
+                  <p className="mt-1 text-[20px] font-bold leading-tight tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
+                    {formatNumber(step.sessions)}
+                  </p>
+                  <StepRate step={step} prev={prev} />
+                </li>
+              );
+            })}
+          </ol>
+        </>
       )}
     </div>
   );

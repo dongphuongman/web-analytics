@@ -350,14 +350,15 @@ function TimezoneSection({
         return (
           <li
             key={s.id}
-            className="flex items-center justify-between gap-3 rounded-[10px] bg-[#F9F8F6] px-3 py-2"
+            className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] bg-[#F9F8F6] px-3 py-2"
           >
             <span className="flex min-w-0 items-center gap-2">
               <SiteFavicon favicon={s.favicon} size={16} fallbackClassName="text-[#9B9590]" />
               <span className="truncate text-[12.5px] text-[#3D3B4F]">{s.domain || s.name}</span>
             </span>
             <span
-              className={`shrink-0 text-[12px] ${willChange ? 'font-medium text-[#c9694f]' : 'text-[#9B9590]'}`}
+              title={zone}
+              className={`min-w-0 truncate text-[12px] ${willChange ? 'font-medium text-[#c9694f]' : 'text-[#9B9590]'}`}
             >
               {zone}
               {willChange && ' · will change'}

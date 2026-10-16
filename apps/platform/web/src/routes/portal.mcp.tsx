@@ -240,7 +240,7 @@ function McpPage(): ReactElement {
 
       {/* Endpoint - always visible, independent of the steps below */}
       <div className={`${CARD} flex flex-wrap items-center justify-between gap-4 p-5`}>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-full sm:basis-0">
           <span className={`${EYEBROW} mb-2 block`}>Your MCP endpoint</span>
           <div className="flex items-center gap-2.5">
             <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[#F2F1ED] px-3.5 py-2.5 font-mono text-[12.5px] text-[#3D3B4F]">
@@ -249,17 +249,19 @@ function McpPage(): ReactElement {
             <CopyButton text={mcpUrl} tag="url" />
           </div>
         </div>
-        <div className="text-right">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:block sm:text-right">
           <span className="inline-flex rounded-full bg-[#E3F6EE] px-2.5 py-0.5 text-[11.5px] font-bold text-[#123326]">
             {TOOLS.length} tools available
           </span>
-          <p className="mt-1.5 text-[11.5px] text-[#9B9590]">Streamable HTTP · Bearer token auth</p>
+          <p className="text-[11.5px] text-[#9B9590] sm:mt-1.5">
+            Streamable HTTP · Bearer token auth
+          </p>
         </div>
       </div>
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-[7fr_5fr]">
         {/* Guided setup */}
-        <div className={`${CARD} p-6`}>
+        <div className={`${CARD} p-5 sm:p-6`}>
           <h2 className="mb-5 text-[15px] font-semibold text-[#3D3B4F]">Connect a client</h2>
 
           <div className="grid grid-cols-[26px_1fr] gap-x-3.5">
@@ -293,8 +295,8 @@ function McpPage(): ReactElement {
 
             <Step n={2} done={tokenDone}>
               <p className="pt-0.5 text-[13.5px] font-semibold text-[#3D3B4F]">Pick a token</p>
-              <div className="mt-2 flex items-center gap-2.5">
-                <div className="relative flex-1">
+              <div className="mt-2 flex flex-wrap items-center gap-2.5">
+                <div className="relative min-w-0 flex-1 basis-full sm:basis-0">
                   <select
                     value={tokenId}
                     onChange={e => {
@@ -387,7 +389,7 @@ function McpPage(): ReactElement {
         </div>
 
         {/* Tools reference */}
-        <div className={`${CARD} p-6`}>
+        <div className={`${CARD} p-5 sm:p-6`}>
           <div className="flex items-center justify-between">
             <h2 className="text-[15px] font-semibold text-[#3D3B4F]">Tools</h2>
             <span className="rounded-full bg-[#E3F6EE] px-2.5 py-0.5 text-[11.5px] font-bold text-[#123326]">
