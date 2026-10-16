@@ -59,6 +59,8 @@ export function GoalsPanel({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] });
       queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId, 'goals'] });
+      // Conversions by source counts against the goal definitions too.
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId, 'attribution'] });
       setConfirmId(null);
     },
     onError: (err: Error) => setDeleteError(err.message),

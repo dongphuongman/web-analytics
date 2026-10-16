@@ -2,6 +2,7 @@ import { AUTO_EVENTS } from './constants';
 import type { Period } from './constants';
 import type { LiveDimension, LiveFilters } from './live';
 import { AI_HOSTNAME_IN, aiSourceCaseSql } from './ai-sources';
+import { botGroupNames, type BotGroup } from './bots';
 
 export interface QueryConfig {
   accountId: string;
@@ -887,6 +888,118 @@ export function buildEntryExitPagesQuery(
 }
 
 /**
+ * Path analysis: the pages viewed right after (or right before) `target`, an
+ * exact path or a '/section/*' prefix. LEAD/LAG run over each session's full
+ * pageview sequence, so `target` is matched only after the neighbours are
+ * known - filtering rows first would hide them.
+ *
+ * Dashboard filters apply to whole sessions instead: `keep` marks every row
+ * of a session that has at least one pageview matching all the filters, so
+ * a source or UTM filter (which only some of a visit's rows carry) still
+ * keeps the whole visit, in the same single scan. Reloads (a page followed
+ * by itself) are not a step. Counted per session, so a visit that passes
+ * through `target` twice counts once per neighbour.
+ */
+export function buildPathNeighborsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  kind: 'next' | 'prev',
+  target: string,
+  filters?: LiveFilters,
+  limit = 10
+) {
+  const neighbor = kind === 'next' ? 'next_path' : 'prev_path';
+  const keep = filters
+    ? `MAX(CASE WHEN 1 = 1${filterClause(filters)} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+    : '1';
+  return (table: string) => `
+    WITH steps AS (
+      SELECT
+        session_id,
+        pathname,
+        LEAD(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS next_path,
+        LAG(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS prev_path,
+        ${keep} AS keep
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, 'pageview')}
+        AND session_id != ''
+    )
+    SELECT
+      ${neighbor} AS name,
+      approx_distinct(session_id) AS sessions
+    FROM steps
+    WHERE keep = 1
+      AND ${pathMatchSql('pathname', target)}
+      AND ${neighbor} IS NOT NULL
+      AND ${neighbor} != pathname
+    GROUP BY ${neighbor}
+    ORDER BY sessions DESC
+    LIMIT ${limit}
+  `;
+}
+
+/** Goals one conversions-by-source query will match (bounds the SQL). */
+export const MAX_ATTRIBUTION_GOALS = 50;
+
+/**
+ * Conversions by UTM source, medium or campaign: per tagged session, the tag
+ * on its first pageview, and whether the session completed any of `goals`.
+ * One scan, windows only: ROW_NUMBER picks each session's first pageview,
+ * and MAX(...) OVER flags sessions that converted and sessions with a
+ * pageview matching the dashboard filters (filters select whole sessions,
+ * as in buildPathNeighborsQuery). Untagged sessions are left out. With no
+ * goals every session counts as unconverted.
+ */
+export function buildAttributionQuery(
+  siteKey: string,
+  range: PeriodRange,
+  dim: 'source' | 'medium' | 'campaign',
+  goals: SpecialGoalDef[],
+  filters?: LiveFilters,
+  limit = 10
+) {
+  const col = dim === 'source' ? 'utm_source' : dim === 'medium' ? 'utm_medium' : 'utm_campaign';
+  const conds = goals
+    .slice(0, MAX_ATTRIBUTION_GOALS)
+    .map(g =>
+      g.type === 'page'
+        ? `(event_type = 'pageview' AND ${pathMatchSql('pathname', g.target)})`
+        : `(event_type = 'event' AND event_name = '${esc(g.target)}'${
+            g.propKey && g.propValue ? ` AND ${propMatchSql(g.propKey, g.propValue)}` : ''
+          })`
+    );
+  const converted = conds.length
+    ? `MAX(CASE WHEN ${conds.join(' OR ')} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+    : '0';
+  const keep = filters
+    ? `MAX(CASE WHEN event_type = 'pageview'${filterClause(filters)} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+    : '1';
+  return (table: string) => `
+    WITH visit_rows AS (
+      SELECT
+        event_type,
+        ${col} AS name,
+        ROW_NUMBER() OVER (PARTITION BY session_id, event_type ORDER BY ts) AS rn,
+        ${converted} AS converted,
+        ${keep} AS keep
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, null)}
+        AND event_type IN ('pageview', 'event')
+        AND session_id != ''
+    )
+    SELECT
+      name,
+      COUNT(*) AS sessions,
+      SUM(converted) AS conversions
+    FROM visit_rows
+    WHERE event_type = 'pageview' AND rn = 1 AND keep = 1 AND name != ''
+    GROUP BY name
+    ORDER BY sessions DESC
+    LIMIT ${limit}
+  `;
+}
+
+/**
  * Outbound-link / file-download breakdown. Auto link events carry a canonical
  * event_meta of exactly '{"url":"..."}' (collect re-serializes it), so
  * grouping on the raw string is equivalent to grouping by URL - no JSON
@@ -1272,16 +1385,25 @@ export function buildWebmcpQuery(siteKey: string, range: PeriodRange, filters?: 
   `;
 }
 
+/** `AND browser [NOT] IN (...)` for one Bots-panel group, or nothing. */
+export function botGroupSql(group?: BotGroup): string {
+  if (!group) return '';
+  const { names, exclude } = botGroupNames(group);
+  return ` AND browser ${exclude ? 'NOT IN' : 'IN'} (${names.map(n => `'${esc(n)}'`).join(', ')})`;
+}
+
 /**
  * Bot visits grouped by bot name. Ingest stores bot pageviews under
  * event_type 'bot_pageview' with the display name in `browser`, so no other
  * builder (all predicated on 'pageview'/'event') ever sees these rows.
+ * `group` narrows to one Bots-panel tab before the limit applies.
  */
 export function buildBotsQuery(
   siteKey: string,
   range: PeriodRange,
   filters?: LiveFilters,
-  limit = 20
+  limit = 20,
+  group?: BotGroup
 ) {
   return (table: string) => `
     SELECT
@@ -1289,7 +1411,7 @@ export function buildBotsQuery(
       approx_distinct(visitor_id) AS visitors,
       COUNT(*) AS pageviews
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range, 'bot_pageview', filters)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'bot_pageview', filters)}${botGroupSql(group)}
     GROUP BY browser
     ORDER BY visitors DESC, pageviews DESC
     LIMIT ${limit}

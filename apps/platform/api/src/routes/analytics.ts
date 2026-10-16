@@ -17,6 +17,8 @@ import {
   type LiveFilters,
   type LiveRealtimeLocation,
   toLiveFilters,
+  botCategory,
+  BOT_GROUPS,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { cacheTtlSeconds, freshTtlSeconds } from '../lib/cache-ttl';
@@ -36,6 +38,8 @@ import {
   buildTimeseriesQuery,
   buildTopPagesQuery,
   buildEntryExitPagesQuery,
+  buildPathNeighborsQuery,
+  buildAttributionQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
   buildAiSourcesQuery,
@@ -415,6 +419,26 @@ const utmQuery = z.object({
 const pagesQuery = z.object({
   period: z.enum(PERIODS).default('today'),
   type: z.enum(['top', 'entry', 'exit']).default('top'),
+  ...filterFields,
+});
+const pathsQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  kind: z.enum(['next', 'prev']).default('next'),
+  // The selected page: an exact path or a '/section/*' prefix.
+  path: z.string().min(1).max(2048),
+  ...filterFields,
+});
+const attributionQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  type: z.enum(['source', 'medium', 'campaign']).default('source'),
+  // One goal's id; without it a session converts by completing any goal.
+  goal: z.string().max(64).optional(),
+  ...filterFields,
+});
+const botsQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  // One Bots-panel tab; omitted = every bot.
+  group: z.enum(BOT_GROUPS).optional(),
   ...filterFields,
 });
 const linksQuery = z.object({
@@ -1277,6 +1301,130 @@ export const analyticsRoute = appWithBatch
     });
   })
 
+  // Conversions by UTM source / medium / campaign: tagged sessions (by the
+  // tag on their first pageview) and how many completed a goal - any goal,
+  // or one via ?goal=<id>. Filters select whole sessions (see
+  // buildAttributionQuery). Not on share pages.
+  .get('/:siteId/stats/attribution', requireAuth, validate('query', attributionQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, type, goal } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    // Oldest first, so the MAX_ATTRIBUTION_GOALS cap is stable.
+    const siteGoals = await c
+      .get('db')!
+      .select()
+      .from(goals)
+      .where(goal ? and(eq(goals.siteId, siteId), eq(goals.id, goal)) : eq(goals.siteId, siteId))
+      .orderBy(goals.createdAt);
+    if (goal && siteGoals.length === 0) return c.json({ error: 'Goal not found' }, 404);
+    const targets = siteGoals.map(g => ({
+      id: g.id,
+      type: g.type,
+      target: g.target,
+      propKey: g.propKey,
+      propValue: g.propValue,
+    }));
+
+    const respond = (rows: { name: string; sessions: number; conversions: number }[]) =>
+      c.json({
+        data: rows.map(r => ({
+          ...r,
+          conversionRate: r.sessions > 0 ? Math.round((r.conversions / r.sessions) * 1000) / 10 : 0,
+        })),
+      });
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        return respond(
+          await liveStore(c, site.siteId).attribution(
+            type,
+            ms(range.from),
+            ms(range.to),
+            targets,
+            10,
+            filters
+          )
+        );
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; sessions: unknown; conversions: unknown }>(
+        c,
+        ttl,
+        buildAttributionQuery(site.siteId, range, type, targets, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return respond(
+      outcome.map(r => ({
+        name: r.name,
+        sessions: toNumber(r.sessions),
+        conversions: toNumber(r.conversions),
+      }))
+    );
+  })
+
+  // Path analysis: pages viewed right after ('next') or before ('prev') the
+  // selected page or section. Filters select whole sessions (see
+  // buildPathNeighborsQuery). Not on share pages.
+  .get('/:siteId/stats/paths', requireAuth, validate('query', pathsQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, kind, path } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).pathNeighbors(
+          kind,
+          path,
+          ms(range.from),
+          ms(range.to),
+          10,
+          filters
+        );
+        return c.json({ data: rows });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; sessions: unknown }>(
+        c,
+        ttl,
+        buildPathNeighborsQuery(site.siteId, range, kind, path, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: outcome.map(r => ({ name: r.name, sessions: toNumber(r.sessions) })),
+    });
+  })
+
   .get('/:siteId/stats/links', requireAuth, validate('query', linksQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
@@ -1933,11 +2081,11 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/bots', requireAuth, validate('query', periodQuery), async c => {
+  .get('/:siteId/stats/bots', requireAuth, validate('query', botsQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
-    const { period } = query;
+    const { period, group } = query;
     const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
@@ -1950,10 +2098,16 @@ export const analyticsRoute = appWithBatch
           ms(range.from),
           ms(range.to),
           20,
-          filters
+          filters,
+          group
         );
         return c.json({
-          data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+          data: rows.map(r => ({
+            name: r.name,
+            category: botCategory(r.name),
+            visitors: r.visitors,
+            pageviews: r.pageviews,
+          })),
         });
       } catch (err) {
         logLiveFallback(err);
@@ -1967,7 +2121,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; visitors: unknown; pageviews: unknown }>(
         c,
         ttl,
-        buildBotsQuery(site.siteId, range, filters)
+        buildBotsQuery(site.siteId, range, filters, 20, group)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -1975,6 +2129,7 @@ export const analyticsRoute = appWithBatch
     return c.json({
       data: outcome.map(r => ({
         name: r.name,
+        category: botCategory(r.name),
         visitors: toNumber(r.visitors),
         pageviews: toNumber(r.pageviews),
       })),

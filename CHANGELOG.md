@@ -6,9 +6,16 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- Page flow: a new dashboard card shows, for one page, which pages visits came from right before it and went to right after it. It starts on your top page (or the page you're filtered to); pick another, or click a page on either side to follow the path a step further. Reloads don't count as a step, and dashboard filters select whole visits. Agents can ask the same question for a page or a section such as `/docs/*` with the new `get_paths` MCP tool.
+- Conversions by source: a new card under Goals shows, for each UTM source, medium or campaign, the visits it brought, how many completed a goal (any goal, or one you pick) and the conversion rate. A visit is credited to the tags on its first page. The card appears once a site has a goal. Available to agents as the new `get_attribution` MCP tool.
+- The Bots panel has tabs for search engines, AI crawlers, social link previews and other bots, each showing that group's top bots. Agents get each bot's category (search, AI, social, SEO, monitoring or other) from `get_bot_stats`. Google's Vertex AI crawler is now recognised as an AI crawler.
+
 ### Changed
 
 - The dashboard works on phones and tablets. The header tabs fold into a menu, the period picker becomes a single dropdown, the metric tiles sit in two rows of three, funnels show one bar per step, and nothing scrolls sideways down to 320px wide. Form fields no longer make iOS zoom in when you tap them.
+- UTM tags now last the whole visit. Before, only the landing pageview carried a visit's UTM source, medium and campaign; now every pageview, custom event and engagement ping in that session carries them too (a session ends after 30 minutes idle, and a new tagged link replaces the tags). Filtering by a UTM value now shows the whole visit's pages, goals, bounce rate and duration. From this update onwards, UTM-filtered views show more pageviews and conversions than before; visitor counts per UTM value are unchanged. Visitors pick up the new tracker within a day (the script is cached for up to an hour, then refreshed in the background).
 
 ### Fixed
 

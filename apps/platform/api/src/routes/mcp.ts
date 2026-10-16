@@ -210,6 +210,52 @@ const TOOLS: ToolDef[] = [
     }),
   },
   {
+    name: 'get_attribution',
+    description:
+      "Conversions by UTM source, medium or campaign (type, default 'source'): tagged sessions, how many completed a goal, and the conversion rate in percent. Pass goalId (from list_goals) for one goal; otherwise any goal counts.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: str('Site id'),
+        period,
+        type: {
+          type: 'string',
+          enum: ['source', 'medium', 'campaign'],
+          description: "UTM tag to group by, default 'source'",
+        },
+        goalId: str('Optional: only count this goal'),
+      },
+      required: ['siteId', 'period'],
+    },
+    request: a => {
+      const type = a.type === 'medium' || a.type === 'campaign' ? a.type : 'source';
+      const goal = a.goalId ? `&goal=${encodeURIComponent(String(a.goalId))}` : '';
+      return {
+        method: 'GET',
+        path: `/api/analytics/${a.siteId}/stats/attribution?period=${a.period}&type=${type}${goal}`,
+      };
+    },
+  },
+  {
+    name: 'get_paths',
+    description:
+      "Path analysis: the pages visitors viewed right after (kind 'next', the default) or right before (kind 'prev') a page, with how many sessions made each step. `path` is an exact path or a section prefix such as /docs/*. Reloads are not counted as a step.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: str('Site id'),
+        period,
+        path: str('Page path (/pricing) or section prefix (/docs/*)'),
+        kind: { type: 'string', enum: ['next', 'prev'], description: "Direction, default 'next'" },
+      },
+      required: ['siteId', 'period', 'path'],
+    },
+    request: a => ({
+      method: 'GET',
+      path: `/api/analytics/${a.siteId}/stats/paths?period=${a.period}&kind=${a.kind === 'prev' ? 'prev' : 'next'}&path=${encodeURIComponent(String(a.path))}`,
+    }),
+  },
+  {
     name: 'get_goal_stats',
     description: 'Conversion counts and rates for every goal in the period.',
     inputSchema: {
@@ -283,7 +329,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'get_bot_stats',
     description:
-      'Bot traffic in the period: crawlers, AI agents, and monitors by name, with distinct visitors and pageviews. Counted separately from human visitors.',
+      'Bot traffic in the period: crawlers, AI agents, and monitors by name, with a category (search, ai, social, seo, monitoring, other), distinct visitors and pageviews. Counted separately from human visitors.',
     inputSchema: {
       type: 'object',
       properties: { siteId: str('Site id'), period },

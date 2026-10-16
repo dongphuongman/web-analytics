@@ -7,6 +7,8 @@
  * zero ingest delay; historical periods stay on Iceberg + R2 SQL (cold path).
  */
 
+import type { BotGroup } from './bots';
+
 /** Columns the DO can produce top-lists for. */
 export type LiveDimension =
   | 'pathname'
@@ -241,6 +243,21 @@ export interface LiveEntryPageRow {
   sessions: number;
 }
 
+/** Path analysis row: sessions that viewed `name` right after (or right
+ *  before) the selected page. */
+export interface LivePathRow {
+  name: string;
+  sessions: number;
+}
+
+/** Conversions-by-source row: tagged sessions and how many of them
+ *  completed a goal. */
+export interface LiveAttributionRow {
+  name: string;
+  sessions: number;
+  conversions: number;
+}
+
 /** Screen-size bucket row (Mobile / Tablet / Laptop / Desktop). */
 export interface LiveScreenSizeRow {
   name: string;
@@ -338,7 +355,8 @@ export interface LiveStoreApi {
     fromMs: number,
     toMs: number,
     limit: number,
-    filters?: LiveFilters
+    filters?: LiveFilters,
+    group?: BotGroup
   ): Promise<LiveBotRow[]>;
   /** Target-URL breakdown for one auto link event (outbound / download). */
   linkClicks(
@@ -356,6 +374,25 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveEntryPageRow[]>;
+  /** UTM source/medium/campaign of each tagged session's first pageview,
+   *  with how many of those sessions completed any of the goals. */
+  attribution(
+    dim: 'source' | 'medium' | 'campaign',
+    fromMs: number,
+    toMs: number,
+    goals: LiveGoalTarget[],
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveAttributionRow[]>;
+  /** Pages viewed right after ('next') or before ('prev') a page or section. */
+  pathNeighbors(
+    kind: 'next' | 'prev',
+    target: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LivePathRow[]>;
   /** Visitors bucketed by screen width (Mobile/Tablet/Laptop/Desktop). */
   screenSizes(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveScreenSizeRow[]>;
   /** Distinct event_meta groups for one custom event (props parsed by the API). */

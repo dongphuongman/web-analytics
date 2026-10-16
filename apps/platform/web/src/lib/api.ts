@@ -1,6 +1,6 @@
 import { hc } from 'hono/client';
 import type { AppType } from '@traks/platform-api';
-import type { Period } from '@traks/shared';
+import type { BotGroup, Period } from '@traks/shared';
 import { authClient } from '@/lib/auth-client';
 
 /** Click-to-filter params, passed through to the analytics endpoints. */
@@ -565,10 +565,48 @@ export const api = {
     return res.json();
   },
 
-  async getBots(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getBots(
+    siteId: string,
+    period: Period,
+    filters?: AnalyticsFilters,
+    group?: BotGroup
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.bots.$get({
       param: { siteId },
-      query: { period, ...filters },
+      query: { period, ...filters, ...(group ? { group } : {}) },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  /** Pages viewed right after ('next') or before ('prev') `path`. */
+  async getPaths(
+    siteId: string,
+    period: Period,
+    kind: 'next' | 'prev',
+    path: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.paths.$get({
+      param: { siteId },
+      query: { period, kind, path, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  /** Tagged visits per UTM value and how many completed a goal (any goal
+   *  when `goalId` is omitted). */
+  async getAttribution(
+    siteId: string,
+    period: Period,
+    type: 'source' | 'medium' | 'campaign',
+    goalId?: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.attribution.$get({
+      param: { siteId },
+      query: { period, type, ...filters, ...(goalId ? { goal: goalId } : {}) },
     });
     await assertOk(res);
     return res.json();
