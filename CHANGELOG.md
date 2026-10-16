@@ -6,6 +6,8 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+## 0.1.44 - 2026-10-16
+
 ### Added
 
 - Page flow: a new dashboard card shows, for one page, which pages visits came from right before it and went to right after it. It starts on your top page (or the page you're filtered to); pick another, or click a page on either side to follow the path a step further. Reloads don't count as a step, and dashboard filters select whole visits. Agents can ask the same question for a page or a section such as `/docs/*` with the new `get_paths` MCP tool.
