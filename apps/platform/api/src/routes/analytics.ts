@@ -36,6 +36,7 @@ import {
   buildTimeseriesQuery,
   buildTopPagesQuery,
   buildEntryExitPagesQuery,
+  buildPathNeighborsQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
   buildAiSourcesQuery,
@@ -415,6 +416,13 @@ const utmQuery = z.object({
 const pagesQuery = z.object({
   period: z.enum(PERIODS).default('today'),
   type: z.enum(['top', 'entry', 'exit']).default('top'),
+  ...filterFields,
+});
+const pathsQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  kind: z.enum(['next', 'prev']).default('next'),
+  // The selected page: an exact path or a '/section/*' prefix.
+  path: z.string().min(1).max(2048),
   ...filterFields,
 });
 const linksQuery = z.object({
@@ -1274,6 +1282,53 @@ export const analyticsRoute = appWithBatch
         visitors: r.visitors,
         pageviews: r.pageviews,
       })),
+    });
+  })
+
+  // Path analysis: pages viewed right after ('next') or before ('prev') the
+  // selected page or section. Filters select whole sessions (see
+  // buildPathNeighborsQuery). Not on share pages.
+  .get('/:siteId/stats/paths', requireAuth, validate('query', pathsQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, kind, path } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).pathNeighbors(
+          kind,
+          path,
+          ms(range.from),
+          ms(range.to),
+          10,
+          filters
+        );
+        return c.json({ data: rows });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; sessions: unknown }>(
+        c,
+        ttl,
+        buildPathNeighborsQuery(site.siteId, range, kind, path, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: outcome.map(r => ({ name: r.name, sessions: toNumber(r.sessions) })),
     });
   })
 

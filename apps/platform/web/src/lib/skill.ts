@@ -96,6 +96,8 @@ options as goals:
 - \`get_stats {siteId, period}\`: visitors, pageviews, sessions, bounce,
   timeseries, top pages/referrers/countries/browsers.
 - \`get_goal_stats\`, \`get_funnel_stats\`, \`get_custom_events\`: same periods.
+- \`get_paths {siteId, period, path, kind}\`: pages viewed right after
+  (kind 'next') or before ('prev') a page or '/section/*'.
 - Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live).
 
 ## Privacy rules (do not violate)

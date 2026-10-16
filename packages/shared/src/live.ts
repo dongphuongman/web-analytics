@@ -241,6 +241,13 @@ export interface LiveEntryPageRow {
   sessions: number;
 }
 
+/** Path analysis row: sessions that viewed `name` right after (or right
+ *  before) the selected page. */
+export interface LivePathRow {
+  name: string;
+  sessions: number;
+}
+
 /** Screen-size bucket row (Mobile / Tablet / Laptop / Desktop). */
 export interface LiveScreenSizeRow {
   name: string;
@@ -356,6 +363,15 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveEntryPageRow[]>;
+  /** Pages viewed right after ('next') or before ('prev') a page or section. */
+  pathNeighbors(
+    kind: 'next' | 'prev',
+    target: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LivePathRow[]>;
   /** Visitors bucketed by screen width (Mobile/Tablet/Laptop/Desktop). */
   screenSizes(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveScreenSizeRow[]>;
   /** Distinct event_meta groups for one custom event (props parsed by the API). */

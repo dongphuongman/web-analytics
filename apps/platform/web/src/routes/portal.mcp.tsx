@@ -133,6 +133,7 @@ const TOOLS: { name: string; desc: string; manage?: boolean }[] = [
   { name: 'list_sites', desc: 'sites in this workspace' },
   { name: 'get_tracking_snippet', desc: 'the script tag for a site' },
   { name: 'get_stats', desc: 'visitors, pageviews, breakdowns; today is live' },
+  { name: 'get_paths', desc: 'pages viewed before or after a page' },
   { name: 'get_goal_stats', desc: 'conversions per goal' },
   { name: 'get_funnel_stats', desc: 'step completion and drop-off' },
   { name: 'get_custom_events', desc: 'events fired, counts and totals' },

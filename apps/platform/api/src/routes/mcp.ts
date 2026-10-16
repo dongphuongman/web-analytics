@@ -210,6 +210,25 @@ const TOOLS: ToolDef[] = [
     }),
   },
   {
+    name: 'get_paths',
+    description:
+      "Path analysis: the pages visitors viewed right after (kind 'next', the default) or right before (kind 'prev') a page, with how many sessions made each step. `path` is an exact path or a section prefix such as /docs/*. Reloads are not counted as a step.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: str('Site id'),
+        period,
+        path: str('Page path (/pricing) or section prefix (/docs/*)'),
+        kind: { type: 'string', enum: ['next', 'prev'], description: "Direction, default 'next'" },
+      },
+      required: ['siteId', 'period', 'path'],
+    },
+    request: a => ({
+      method: 'GET',
+      path: `/api/analytics/${a.siteId}/stats/paths?period=${a.period}&kind=${a.kind === 'prev' ? 'prev' : 'next'}&path=${encodeURIComponent(String(a.path))}`,
+    }),
+  },
+  {
     name: 'get_goal_stats',
     description: 'Conversion counts and rates for every goal in the period.',
     inputSchema: {

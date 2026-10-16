@@ -13,6 +13,7 @@ export {
   buildTimeseriesQuery,
   buildTopPagesQuery,
   buildEntryExitPagesQuery,
+  buildPathNeighborsQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
   buildAiSourcesQuery,

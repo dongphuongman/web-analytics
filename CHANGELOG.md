@@ -6,6 +6,10 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- Path analysis: pick a page (or a section such as `/docs/*`) and see which pages visitors viewed right after it or right before it, counted in sessions. Reloads don't count as a step, and dashboard filters select whole visits. Available to agents as the new `get_paths` MCP tool.
+
 ### Changed
 
 - The dashboard works on phones and tablets. The header tabs fold into a menu, the period picker becomes a single dropdown, the metric tiles sit in two rows of three, funnels show one bar per step, and nothing scrolls sideways down to 320px wide. Form fields no longer make iOS zoom in when you tap them.

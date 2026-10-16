@@ -20,6 +20,7 @@ import type {
   LiveWebmcpMetaRow,
   LiveLinkRow,
   LiveEntryPageRow,
+  LivePathRow,
   LiveScreenSizeRow,
   LiveMetaRow,
 } from '@traks/shared';
@@ -1281,6 +1282,59 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray()
           .map(r => ({ name: String(r.name), visitors: n(r.visitors), sessions: n(r.sessions) }))
+    );
+  }
+
+  /** Same semantics as buildPathNeighborsQuery (shared/src/queries.ts):
+   *  neighbours over the full session sequence, filters per session. */
+  async pathNeighbors(
+    kind: 'next' | 'prev',
+    target: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LivePathRow[]> {
+    const neighbor = kind === 'next' ? 'next_path' : 'prev_path';
+    const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    const keep = filters
+      ? `MAX(CASE WHEN 1 = 1${f.sql} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+      : '1';
+    const prefix = isPagePrefix(target) ? target.slice(0, -2) : null;
+    const match =
+      prefix === null ? 'pathname = ?' : `(pathname = ? OR pathname LIKE ? ESCAPE '\\')`;
+    const matchParams = prefix === null ? [target] : [prefix, `${escapeLike(prefix)}/%`];
+    return this.memoized(
+      `path:${kind}:${SiteLiveStore.esc(target)}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `WITH steps AS (
+               SELECT session_id, pathname,
+                      LEAD(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS next_path,
+                      LAG(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS prev_path,
+                      ${keep} AS keep
+               FROM events
+               WHERE event_type = 'pageview' AND session_id != ''
+                 AND ts >= ? AND ts < ?
+             )
+             SELECT ${neighbor} AS name, COUNT(DISTINCT session_id) AS sessions
+             FROM steps
+             WHERE keep = 1 AND ${match}
+               AND ${neighbor} IS NOT NULL AND ${neighbor} != pathname
+             GROUP BY ${neighbor}
+             ORDER BY sessions DESC
+             LIMIT ?`,
+            ...f.params,
+            fromMs,
+            toMs,
+            ...matchParams,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({ name: String(r.name), sessions: n(r.sessions) }))
     );
   }
 }
