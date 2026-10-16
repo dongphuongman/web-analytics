@@ -37,6 +37,7 @@ import {
   buildTopPagesQuery,
   buildEntryExitPagesQuery,
   buildPathNeighborsQuery,
+  buildAttributionQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
   buildAiSourcesQuery,
@@ -423,6 +424,13 @@ const pathsQuery = z.object({
   kind: z.enum(['next', 'prev']).default('next'),
   // The selected page: an exact path or a '/section/*' prefix.
   path: z.string().min(1).max(2048),
+  ...filterFields,
+});
+const attributionQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  type: z.enum(['source', 'medium', 'campaign']).default('source'),
+  // One goal's id; without it a session converts by completing any goal.
+  goal: z.string().max(64).optional(),
   ...filterFields,
 });
 const linksQuery = z.object({
@@ -1283,6 +1291,83 @@ export const analyticsRoute = appWithBatch
         pageviews: r.pageviews,
       })),
     });
+  })
+
+  // Conversions by UTM source / medium / campaign: tagged sessions (by the
+  // tag on their first pageview) and how many completed a goal - any goal,
+  // or one via ?goal=<id>. Filters select whole sessions (see
+  // buildAttributionQuery). Not on share pages.
+  .get('/:siteId/stats/attribution', requireAuth, validate('query', attributionQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, type, goal } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    // Oldest first, so the MAX_ATTRIBUTION_GOALS cap is stable.
+    const siteGoals = await c
+      .get('db')!
+      .select()
+      .from(goals)
+      .where(goal ? and(eq(goals.siteId, siteId), eq(goals.id, goal)) : eq(goals.siteId, siteId))
+      .orderBy(goals.createdAt);
+    if (goal && siteGoals.length === 0) return c.json({ error: 'Goal not found' }, 404);
+    const targets = siteGoals.map(g => ({
+      id: g.id,
+      type: g.type,
+      target: g.target,
+      propKey: g.propKey,
+      propValue: g.propValue,
+    }));
+
+    const respond = (rows: { name: string; sessions: number; conversions: number }[]) =>
+      c.json({
+        data: rows.map(r => ({
+          ...r,
+          conversionRate: r.sessions > 0 ? Math.round((r.conversions / r.sessions) * 1000) / 10 : 0,
+        })),
+      });
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        return respond(
+          await liveStore(c, site.siteId).attribution(
+            type,
+            ms(range.from),
+            ms(range.to),
+            targets,
+            10,
+            filters
+          )
+        );
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; sessions: unknown; conversions: unknown }>(
+        c,
+        ttl,
+        buildAttributionQuery(site.siteId, range, type, targets, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return respond(
+      outcome.map(r => ({
+        name: r.name,
+        sessions: toNumber(r.sessions),
+        conversions: toNumber(r.conversions),
+      }))
+    );
   })
 
   // Path analysis: pages viewed right after ('next') or before ('prev') the

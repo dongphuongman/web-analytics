@@ -21,6 +21,7 @@ import type {
   LiveLinkRow,
   LiveEntryPageRow,
   LivePathRow,
+  LiveAttributionRow,
   LiveScreenSizeRow,
   LiveMetaRow,
 } from '@traks/shared';
@@ -32,6 +33,7 @@ import {
   escapeLike,
   isPagePrefix,
   propLikePatterns,
+  MAX_ATTRIBUTION_GOALS,
 } from '@traks/shared';
 
 // "Today" plus the full previous-day comparison window needs at most 48h in
@@ -1282,6 +1284,91 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray()
           .map(r => ({ name: String(r.name), visitors: n(r.visitors), sessions: n(r.sessions) }))
+    );
+  }
+
+  /** Same semantics as buildAttributionQuery (shared/src/queries.ts): the
+   *  tag on each session's first pageview, whether the session completed any
+   *  of `goalDefs`, filters per session. */
+  async attribution(
+    dim: 'source' | 'medium' | 'campaign',
+    fromMs: number,
+    toMs: number,
+    goalDefs: LiveGoalTarget[],
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveAttributionRow[]> {
+    const col = dim === 'source' ? 'utm_source' : dim === 'medium' ? 'utm_medium' : 'utm_campaign';
+    const boundedLimit = Math.max(1, Math.min(100, limit));
+    const defs = goalDefs.slice(0, MAX_ATTRIBUTION_GOALS);
+    const conds: string[] = [];
+    const goalParams: string[] = [];
+    for (const g of defs) {
+      if (g.type === 'page') {
+        if (isPagePrefix(g.target)) {
+          const prefix = g.target.slice(0, -2);
+          conds.push(`(event_type = 'pageview' AND (pathname = ? OR pathname LIKE ? ESCAPE '\\'))`);
+          goalParams.push(prefix, `${escapeLike(prefix)}/%`);
+        } else {
+          conds.push(`(event_type = 'pageview' AND pathname = ?)`);
+          goalParams.push(g.target);
+        }
+      } else if (g.propKey && g.propValue) {
+        const patterns = propLikePatterns(g.propKey, g.propValue);
+        const like = patterns.map(() => `event_meta LIKE ? ESCAPE '\\'`).join(' OR ');
+        conds.push(`(event_type = 'event' AND event_name = ? AND (${like}))`);
+        goalParams.push(g.target, ...patterns);
+      } else {
+        conds.push(`(event_type = 'event' AND event_name = ?)`);
+        goalParams.push(g.target);
+      }
+    }
+    const converted = conds.length
+      ? `MAX(CASE WHEN ${conds.join(' OR ')} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+      : '0';
+    const f = SiteLiveStore.filterSql(filters);
+    const keep = filters
+      ? `MAX(CASE WHEN event_type = 'pageview'${f.sql} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+      : '1';
+    const defKey = defs
+      .map(
+        g =>
+          `${g.id}\u0001${g.type}\u0001${g.target}\u0001${g.propKey ?? ''}\u0001${g.propValue ?? ''}`
+      )
+      .join('\u0002');
+    return this.memoized(
+      `attribution:${dim}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${defKey}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `WITH visit_rows AS (
+               SELECT event_type, ${col} AS name,
+                      ROW_NUMBER() OVER (PARTITION BY session_id, event_type ORDER BY ts) AS rn,
+                      ${converted} AS converted,
+                      ${keep} AS keep
+               FROM events
+               WHERE event_type IN ('pageview', 'event') AND session_id != ''
+                 AND ts >= ? AND ts < ?
+             )
+             SELECT name, COUNT(*) AS sessions, SUM(converted) AS conversions
+             FROM visit_rows
+             WHERE event_type = 'pageview' AND rn = 1 AND keep = 1 AND name != ''
+             GROUP BY name
+             ORDER BY sessions DESC
+             LIMIT ?`,
+            ...goalParams,
+            ...f.params,
+            fromMs,
+            toMs,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({
+            name: String(r.name),
+            sessions: n(r.sessions),
+            conversions: n(r.conversions),
+          }))
     );
   }
 

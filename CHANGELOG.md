@@ -9,6 +9,7 @@ ships separately and is not listed here.
 ### Added
 
 - Path analysis: pick a page (or a section such as `/docs/*`) and see which pages visitors viewed right after it or right before it, counted in sessions. Reloads don't count as a step, and dashboard filters select whole visits. Available to agents as the new `get_paths` MCP tool.
+- Conversions by UTM source, medium or campaign: for each tag, the visits it brought, how many completed a goal (any goal, or one you pick) and the conversion rate. A visit is credited to the tags on its first page. Available to agents as the new `get_attribution` MCP tool.
 
 ### Changed
 

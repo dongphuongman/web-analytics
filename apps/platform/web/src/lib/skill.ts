@@ -98,6 +98,8 @@ options as goals:
 - \`get_goal_stats\`, \`get_funnel_stats\`, \`get_custom_events\`: same periods.
 - \`get_paths {siteId, period, path, kind}\`: pages viewed right after
   (kind 'next') or before ('prev') a page or '/section/*'.
+- \`get_attribution {siteId, period, type, goalId}\`: conversions by UTM
+  source, medium or campaign, for one goal or any goal.
 - Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live).
 
 ## Privacy rules (do not violate)

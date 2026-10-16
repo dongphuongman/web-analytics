@@ -937,6 +937,67 @@ export function buildPathNeighborsQuery(
   `;
 }
 
+/** Goals one conversions-by-source query will match (bounds the SQL). */
+export const MAX_ATTRIBUTION_GOALS = 50;
+
+/**
+ * Conversions by UTM source, medium or campaign: per tagged session, the tag
+ * on its first pageview, and whether the session completed any of `goals`.
+ * One scan, windows only: ROW_NUMBER picks each session's first pageview,
+ * and MAX(...) OVER flags sessions that converted and sessions with a
+ * pageview matching the dashboard filters (filters select whole sessions,
+ * as in buildPathNeighborsQuery). Untagged sessions are left out. With no
+ * goals every session counts as unconverted.
+ */
+export function buildAttributionQuery(
+  siteKey: string,
+  range: PeriodRange,
+  dim: 'source' | 'medium' | 'campaign',
+  goals: SpecialGoalDef[],
+  filters?: LiveFilters,
+  limit = 10
+) {
+  const col = dim === 'source' ? 'utm_source' : dim === 'medium' ? 'utm_medium' : 'utm_campaign';
+  const conds = goals
+    .slice(0, MAX_ATTRIBUTION_GOALS)
+    .map(g =>
+      g.type === 'page'
+        ? `(event_type = 'pageview' AND ${pathMatchSql('pathname', g.target)})`
+        : `(event_type = 'event' AND event_name = '${esc(g.target)}'${
+            g.propKey && g.propValue ? ` AND ${propMatchSql(g.propKey, g.propValue)}` : ''
+          })`
+    );
+  const converted = conds.length
+    ? `MAX(CASE WHEN ${conds.join(' OR ')} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+    : '0';
+  const keep = filters
+    ? `MAX(CASE WHEN event_type = 'pageview'${filterClause(filters)} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+    : '1';
+  return (table: string) => `
+    WITH visit_rows AS (
+      SELECT
+        event_type,
+        ${col} AS name,
+        ROW_NUMBER() OVER (PARTITION BY session_id, event_type ORDER BY ts) AS rn,
+        ${converted} AS converted,
+        ${keep} AS keep
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, null)}
+        AND event_type IN ('pageview', 'event')
+        AND session_id != ''
+    )
+    SELECT
+      name,
+      COUNT(*) AS sessions,
+      SUM(converted) AS conversions
+    FROM visit_rows
+    WHERE event_type = 'pageview' AND rn = 1 AND keep = 1 AND name != ''
+    GROUP BY name
+    ORDER BY sessions DESC
+    LIMIT ${limit}
+  `;
+}
+
 /**
  * Outbound-link / file-download breakdown. Auto link events carry a canonical
  * event_meta of exactly '{"url":"..."}' (collect re-serializes it), so

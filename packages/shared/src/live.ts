@@ -248,6 +248,14 @@ export interface LivePathRow {
   sessions: number;
 }
 
+/** Conversions-by-source row: tagged sessions and how many of them
+ *  completed a goal. */
+export interface LiveAttributionRow {
+  name: string;
+  sessions: number;
+  conversions: number;
+}
+
 /** Screen-size bucket row (Mobile / Tablet / Laptop / Desktop). */
 export interface LiveScreenSizeRow {
   name: string;
@@ -363,6 +371,16 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveEntryPageRow[]>;
+  /** UTM source/medium/campaign of each tagged session's first pageview,
+   *  with how many of those sessions completed any of the goals. */
+  attribution(
+    dim: 'source' | 'medium' | 'campaign',
+    fromMs: number,
+    toMs: number,
+    goals: LiveGoalTarget[],
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveAttributionRow[]>;
   /** Pages viewed right after ('next') or before ('prev') a page or section. */
   pathNeighbors(
     kind: 'next' | 'prev',
