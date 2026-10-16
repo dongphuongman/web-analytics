@@ -64,3 +64,21 @@ const CATEGORY_BY_NAME = new Map(NAMED_BOTS.map(b => [b.name, b.category]));
 export function botCategory(name: string): BotCategory {
   return CATEGORY_BY_NAME.get(name) ?? 'other';
 }
+
+/** The Bots panel's tabs. SEO, monitoring and unnamed bots share 'other'. */
+export const BOT_GROUPS = ['search', 'ai', 'social', 'other'] as const;
+export type BotGroup = (typeof BOT_GROUPS)[number];
+
+/** Stored bot names in a group, as a list to keep (`exclude` false) or to
+ *  leave out (`exclude` true): 'other' is every name outside the named
+ *  search, AI and social bots, including names the collector made up. */
+export function botGroupNames(group: BotGroup): { names: string[]; exclude: boolean } {
+  return group === 'other'
+    ? {
+        names: NAMED_BOTS.filter(b => ['search', 'ai', 'social'].includes(b.category)).map(
+          b => b.name
+        ),
+        exclude: true,
+      }
+    : { names: NAMED_BOTS.filter(b => b.category === group).map(b => b.name), exclude: false };
+}

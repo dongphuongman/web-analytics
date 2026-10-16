@@ -18,6 +18,7 @@ import {
   type LiveRealtimeLocation,
   toLiveFilters,
   botCategory,
+  BOT_GROUPS,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { cacheTtlSeconds, freshTtlSeconds } from '../lib/cache-ttl';
@@ -432,6 +433,12 @@ const attributionQuery = z.object({
   type: z.enum(['source', 'medium', 'campaign']).default('source'),
   // One goal's id; without it a session converts by completing any goal.
   goal: z.string().max(64).optional(),
+  ...filterFields,
+});
+const botsQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  // One Bots-panel tab; omitted = every bot.
+  group: z.enum(BOT_GROUPS).optional(),
   ...filterFields,
 });
 const linksQuery = z.object({
@@ -2074,11 +2081,11 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/bots', requireAuth, validate('query', periodQuery), async c => {
+  .get('/:siteId/stats/bots', requireAuth, validate('query', botsQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
-    const { period } = query;
+    const { period, group } = query;
     const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
@@ -2091,7 +2098,8 @@ export const analyticsRoute = appWithBatch
           ms(range.from),
           ms(range.to),
           20,
-          filters
+          filters,
+          group
         );
         return c.json({
           data: rows.map(r => ({
@@ -2113,7 +2121,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; visitors: unknown; pageviews: unknown }>(
         c,
         ttl,
-        buildBotsQuery(site.siteId, range, filters)
+        buildBotsQuery(site.siteId, range, filters, 20, group)
       )
     );
     if (outcome instanceof Response) return outcome;

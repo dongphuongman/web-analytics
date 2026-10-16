@@ -24,6 +24,7 @@ import type {
   LiveAttributionRow,
   LiveScreenSizeRow,
   LiveMetaRow,
+  BotGroup,
 } from '@traks/shared';
 import {
   AUTO_EVENTS,
@@ -34,6 +35,7 @@ import {
   isPagePrefix,
   propLikePatterns,
   MAX_ATTRIBUTION_GOALS,
+  botGroupSql,
 } from '@traks/shared';
 
 // "Today" plus the full previous-day comparison window needs at most 48h in
@@ -1120,12 +1122,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
     fromMs: number,
     toMs: number,
     limit: number,
-    filters?: LiveFilters
+    filters?: LiveFilters,
+    group?: BotGroup
   ): Promise<LiveBotRow[]> {
     const boundedLimit = Math.max(1, Math.min(100, limit));
     const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `botStats:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      `botStats:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${group ?? ''}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql
@@ -1133,7 +1136,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
             // Ingest stores the bot's display name in the browser column.
             `SELECT browser AS name, COUNT(DISTINCT visitor_id) AS visitors, COUNT(*) AS pageviews
              FROM events
-             WHERE event_type = 'bot_pageview' AND ts >= ? AND ts < ?${f.sql}
+             WHERE event_type = 'bot_pageview' AND ts >= ? AND ts < ?${f.sql}${botGroupSql(group)}
              GROUP BY browser
              ORDER BY visitors DESC, pageviews DESC
              LIMIT ?`,

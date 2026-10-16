@@ -85,6 +85,8 @@ export function GoalsDrawer({
       // A goal change only moves the goals panel - refetching every mounted
       // dashboard panel here re-ran ~11 queries for identical numbers.
       queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId, 'goals'] });
+      // Conversions by source counts against the goal definitions too.
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId, 'attribution'] });
       setConfirmId(null);
     },
     onError: (err: Error) => setError(err.message),

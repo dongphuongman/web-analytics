@@ -26,6 +26,8 @@ import type {
   SegmentDef,
   SegmentFilters,
   PublicSiteInfo,
+  GoalStat,
+  BotGroup,
 } from '@traks/shared';
 import { INSTALL_GUIDES, findInstallGuide, guideWithSnippet, trackerSnippet } from '@traks/shared';
 import { cn, formatNumber, formatDuration, formatPercentChange } from '@/lib/utils';
@@ -64,6 +66,12 @@ import { GoalsDrawer } from '@/components/analytics/GoalsDrawer';
 import { FunnelFormModal } from '@/components/analytics/FunnelFormModal';
 import { FunnelsDrawer } from '@/components/analytics/FunnelsDrawer';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
+import { PageFlowPanel, type PathRow } from '@/components/analytics/PageFlowPanel';
+import {
+  ConversionsPanel,
+  type AttributionDim,
+  type AttributionRow,
+} from '@/components/analytics/ConversionsPanel';
 import { PERIOD_NAMES, PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 import { publicStatsApi, type StatsApi } from '@/lib/publicApi';
@@ -516,6 +524,15 @@ type ChartMetric = 'visitors' | 'pageviews' | 'sessions';
 const LINK_TABS = [
   { key: 'outbound', label: 'Outbound' },
   { key: 'download', label: 'Downloads' },
+];
+
+/** Bots panel tabs. 'Other' takes SEO tools, monitors and unnamed bots. */
+const BOT_TABS: { key: 'all' | BotGroup; label: string; empty: string }[] = [
+  { key: 'all', label: 'All', empty: 'No bot visits yet' },
+  { key: 'search', label: 'Search', empty: 'No search crawler visits yet' },
+  { key: 'ai', label: 'AI', empty: 'No AI crawler visits yet' },
+  { key: 'social', label: 'Social', empty: 'No link preview visits yet' },
+  { key: 'other', label: 'Other', empty: 'No other bot visits yet' },
 ];
 
 /** Six tiles: one row from lg, two rows of three below it. Each tile draws
@@ -1118,6 +1135,12 @@ export function SiteDashboard({
   const [linkTab, setLinkTab] = useState('outbound');
   // Drill-down: when set, the Custom Events panel shows this event's props
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  const [botTab, setBotTab] = useState<'all' | BotGroup>('all');
+  // Page flow: the page picked (or followed to); null = the default page.
+  const [flowPage, setFlowPage] = useState<string | null>(null);
+  // Conversions by source: goal (null = any goal) and UTM dimension.
+  const [convGoalId, setConvGoalId] = useState<string | null>(null);
+  const [convDim, setConvDim] = useState<AttributionDim>('source');
 
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
@@ -1409,9 +1432,19 @@ export function SiteDashboard({
       belowFoldVisible && sharesEvents
     )
   );
-  const botsQ = useQuery(
-    tileOpts(['bots'], () => statsApi.getBots(siteId, period, filters), belowFoldVisible && !shared)
-  );
+  // One query per Bots tab, like the other tabbed panels, so a tab switch
+  // never shows another tab's rows as placeholder. 'All' keeps the old key.
+  const botsTileOpts = (group: BotGroup | null): Parameters<typeof useQuery>[0] =>
+    tileOpts(
+      group ? ['bots', group] : ['bots'],
+      () => statsApi.getBots(siteId, period, filters, group ?? undefined),
+      belowFoldVisible && !shared && botTab === (group ?? 'all')
+    );
+  const botsAllQ = useQuery(botsTileOpts(null));
+  const botsSearchQ = useQuery(botsTileOpts('search'));
+  const botsAiQ = useQuery(botsTileOpts('ai'));
+  const botsSocialQ = useQuery(botsTileOpts('social'));
+  const botsOtherQ = useQuery(botsTileOpts('other'));
   const webmcpQ = useQuery(
     tileOpts(
       ['webmcp'],
@@ -1438,6 +1471,60 @@ export function SiteDashboard({
       ['goals'],
       () => statsApi.getGoalStats(siteId, period, filters),
       belowFoldVisible && sharesGoals
+    )
+  );
+
+  // Page flow (signed-in only). It defaults to the dashboard's page filter,
+  // else the period's top page, so it reads the top-pages list itself: same
+  // key as the Top Pages tab, so the two share one request.
+  const flowPagesQ = useQuery(
+    tileOpts(
+      ['pages', 'top'],
+      () => statsApi.getTopPages(siteId, period, 'top', filters),
+      belowFoldVisible && !shared,
+      true
+    )
+  );
+  const flowPageRows = ((flowPagesQ.data as any)?.data ?? []) as {
+    name: string;
+    visitors: number;
+  }[];
+  const flowPageNames = flowPageRows.map(r => r.name).filter(Boolean);
+  const flowTarget = flowPage ?? filters.page ?? flowPageNames[0] ?? null;
+  // Each side is its own scan; keyed by the page, so no placeholder rows
+  // from the previous page.
+  const flowPrevQ = useQuery(
+    tileOpts(
+      ['paths', 'prev', flowTarget],
+      () => api.getPaths(siteId, period, 'prev', flowTarget!, filters),
+      belowFoldVisible && !shared && flowTarget !== null,
+      false,
+      false
+    )
+  );
+  const flowNextQ = useQuery(
+    tileOpts(
+      ['paths', 'next', flowTarget],
+      () => api.getPaths(siteId, period, 'next', flowTarget!, filters),
+      belowFoldVisible && !shared && flowTarget !== null,
+      false,
+      false
+    )
+  );
+
+  // Conversions by source (signed-in only), shown once the site has goals.
+  const goalList = ((goalStatsQ.data as any)?.data ?? []) as GoalStat[];
+  const hasGoals = goalList.length > 0;
+  // A deleted goal falls back to "any goal".
+  const activeConvGoalId =
+    convGoalId && goalList.some(g => g.id === convGoalId) ? convGoalId : null;
+  const attributionQ = useQuery(
+    tileOpts(
+      ['attribution', convDim, activeConvGoalId ?? '*'],
+      () => api.getAttribution(siteId, period, convDim, activeConvGoalId ?? undefined, filters),
+      belowFoldVisible && !shared && hasGoals,
+      false,
+      false
     )
   );
 
@@ -1532,6 +1619,14 @@ export function SiteDashboard({
   };
   const sourceQ = sourceQueries[sourceTab];
   const linkQ = linkTab === 'download' ? downloadsQ : outboundQ;
+  const botQueries: Record<'all' | BotGroup, typeof botsAllQ> = {
+    all: botsAllQ,
+    search: botsSearchQ,
+    ai: botsAiQ,
+    social: botsSocialQ,
+    other: botsOtherQ,
+  };
+  const botsQ = botQueries[botTab];
 
   const locationQueries: Record<string, typeof countriesQ> = {
     country: countriesQ,
@@ -1866,6 +1961,27 @@ export function SiteDashboard({
                 />
               </div>
 
+              {/* Page flow: the pages right before and after one page. Not
+                part of a share page. */}
+              {!shared && (
+                <PageFlowPanel
+                  page={flowTarget}
+                  pages={flowPageNames}
+                  pageVisitors={flowPageRows.find(r => r.name === flowTarget)?.visitors}
+                  onSelect={setFlowPage}
+                  prev={{
+                    rows: (flowPrevQ.data as any)?.data as PathRow[] | undefined,
+                    isLoading: flowPrevQ.isLoading,
+                    isError: flowPrevQ.isError,
+                  }}
+                  next={{
+                    rows: (flowNextQ.data as any)?.data as PathRow[] | undefined,
+                    isLoading: flowNextQ.isLoading,
+                    isError: flowNextQ.isError,
+                  }}
+                />
+              )}
+
               {/* Custom events beside auto-tracked links: events are
                 business actions with a props drill-down; outbound/downloads
                 share one card as tabs since they're the same shape (URL +
@@ -1967,7 +2083,10 @@ export function SiteDashboard({
                       )?.map(b => ({ name: b.name, visitors: b.visitors }))}
                       isLoading={botsQ.isLoading}
                       isError={botsQ.isError}
-                      emptyText="No bot visits yet"
+                      tabs={BOT_TABS}
+                      activeTab={botTab}
+                      onTabChange={key => setBotTab(key as 'all' | BotGroup)}
+                      emptyText={BOT_TABS.find(t => t.key === botTab)!.empty}
                     />
                   </div>
                 </>
@@ -1985,6 +2104,22 @@ export function SiteDashboard({
                   onEdit={canManage ? goal => setGoalForm({ goal }) : undefined}
                   onDuplicate={canManage ? duplicateGoal : undefined}
                   onManage={canManage ? () => setGoalsOpen(true) : undefined}
+                />
+              )}
+
+              {/* Conversions by UTM source, under the goals it counts. Hidden
+                until the site has a goal (the Goals panel prompts for one),
+                and never on a share page. */}
+              {!shared && hasGoals && (
+                <ConversionsPanel
+                  goals={goalList}
+                  goalId={activeConvGoalId}
+                  onGoalChange={setConvGoalId}
+                  dim={convDim}
+                  onDimChange={setConvDim}
+                  rows={(attributionQ.data as any)?.data as AttributionRow[] | undefined}
+                  isLoading={attributionQ.isLoading}
+                  isError={attributionQ.isError}
                 />
               )}
 

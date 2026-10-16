@@ -7,6 +7,8 @@
  * zero ingest delay; historical periods stay on Iceberg + R2 SQL (cold path).
  */
 
+import type { BotGroup } from './bots';
+
 /** Columns the DO can produce top-lists for. */
 export type LiveDimension =
   | 'pathname'
@@ -353,7 +355,8 @@ export interface LiveStoreApi {
     fromMs: number,
     toMs: number,
     limit: number,
-    filters?: LiveFilters
+    filters?: LiveFilters,
+    group?: BotGroup
   ): Promise<LiveBotRow[]>;
   /** Target-URL breakdown for one auto link event (outbound / download). */
   linkClicks(

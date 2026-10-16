@@ -8,9 +8,9 @@ ships separately and is not listed here.
 
 ### Added
 
-- Path analysis: pick a page (or a section such as `/docs/*`) and see which pages visitors viewed right after it or right before it, counted in sessions. Reloads don't count as a step, and dashboard filters select whole visits. Available to agents as the new `get_paths` MCP tool.
-- Conversions by UTM source, medium or campaign: for each tag, the visits it brought, how many completed a goal (any goal, or one you pick) and the conversion rate. A visit is credited to the tags on its first page. Available to agents as the new `get_attribution` MCP tool.
-- Each bot now has a category: search, AI, social, SEO, monitoring or other. Agents get it from `get_bot_stats`. Google's Vertex AI crawler is now recognised as an AI crawler.
+- Page flow: a new dashboard card shows, for one page, which pages visits came from right before it and went to right after it. It starts on your top page (or the page you're filtered to); pick another, or click a page on either side to follow the path a step further. Reloads don't count as a step, and dashboard filters select whole visits. Agents can ask the same question for a page or a section such as `/docs/*` with the new `get_paths` MCP tool.
+- Conversions by source: a new card under Goals shows, for each UTM source, medium or campaign, the visits it brought, how many completed a goal (any goal, or one you pick) and the conversion rate. A visit is credited to the tags on its first page. The card appears once a site has a goal. Available to agents as the new `get_attribution` MCP tool.
+- The Bots panel has tabs for search engines, AI crawlers, social link previews and other bots, each showing that group's top bots. Agents get each bot's category (search, AI, social, SEO, monitoring or other) from `get_bot_stats`. Google's Vertex AI crawler is now recognised as an AI crawler.
 
 ### Changed
 

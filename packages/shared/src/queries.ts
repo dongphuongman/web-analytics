@@ -2,6 +2,7 @@ import { AUTO_EVENTS } from './constants';
 import type { Period } from './constants';
 import type { LiveDimension, LiveFilters } from './live';
 import { AI_HOSTNAME_IN, aiSourceCaseSql } from './ai-sources';
+import { botGroupNames, type BotGroup } from './bots';
 
 export interface QueryConfig {
   accountId: string;
@@ -1384,16 +1385,25 @@ export function buildWebmcpQuery(siteKey: string, range: PeriodRange, filters?: 
   `;
 }
 
+/** `AND browser [NOT] IN (...)` for one Bots-panel group, or nothing. */
+export function botGroupSql(group?: BotGroup): string {
+  if (!group) return '';
+  const { names, exclude } = botGroupNames(group);
+  return ` AND browser ${exclude ? 'NOT IN' : 'IN'} (${names.map(n => `'${esc(n)}'`).join(', ')})`;
+}
+
 /**
  * Bot visits grouped by bot name. Ingest stores bot pageviews under
  * event_type 'bot_pageview' with the display name in `browser`, so no other
  * builder (all predicated on 'pageview'/'event') ever sees these rows.
+ * `group` narrows to one Bots-panel tab before the limit applies.
  */
 export function buildBotsQuery(
   siteKey: string,
   range: PeriodRange,
   filters?: LiveFilters,
-  limit = 20
+  limit = 20,
+  group?: BotGroup
 ) {
   return (table: string) => `
     SELECT
@@ -1401,7 +1411,7 @@ export function buildBotsQuery(
       approx_distinct(visitor_id) AS visitors,
       COUNT(*) AS pageviews
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range, 'bot_pageview', filters)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'bot_pageview', filters)}${botGroupSql(group)}
     GROUP BY browser
     ORDER BY visitors DESC, pageviews DESC
     LIMIT ${limit}
