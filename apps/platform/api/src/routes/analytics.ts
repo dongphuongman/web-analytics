@@ -17,6 +17,7 @@ import {
   type LiveFilters,
   type LiveRealtimeLocation,
   toLiveFilters,
+  botCategory,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { cacheTtlSeconds, freshTtlSeconds } from '../lib/cache-ttl';
@@ -2093,7 +2094,12 @@ export const analyticsRoute = appWithBatch
           filters
         );
         return c.json({
-          data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+          data: rows.map(r => ({
+            name: r.name,
+            category: botCategory(r.name),
+            visitors: r.visitors,
+            pageviews: r.pageviews,
+          })),
         });
       } catch (err) {
         logLiveFallback(err);
@@ -2115,6 +2121,7 @@ export const analyticsRoute = appWithBatch
     return c.json({
       data: outcome.map(r => ({
         name: r.name,
+        category: botCategory(r.name),
         visitors: toNumber(r.visitors),
         pageviews: toNumber(r.pageviews),
       })),

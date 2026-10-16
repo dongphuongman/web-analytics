@@ -329,7 +329,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'get_bot_stats',
     description:
-      'Bot traffic in the period: crawlers, AI agents, and monitors by name, with distinct visitors and pageviews. Counted separately from human visitors.',
+      'Bot traffic in the period: crawlers, AI agents, and monitors by name, with a category (search, ai, social, seo, monitoring, other), distinct visitors and pageviews. Counted separately from human visitors.',
     inputSchema: {
       type: 'object',
       properties: { siteId: str('Site id'), period },
