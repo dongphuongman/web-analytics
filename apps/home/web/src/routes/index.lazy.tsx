@@ -382,25 +382,15 @@ function LandingPage(): ReactElement {
           <div className="flex items-center gap-2.5">
             <img src="/logo.svg" alt="Traks" className="h-7 w-7" />
             <span className="text-[16px] font-bold tracking-tight">Traks</span>
-            <span aria-hidden className="ml-0.5 h-4 w-px bg-[#E6E4DE]" />
-            <span className="whitespace-nowrap text-[12.5px] text-[#8C8A99]">
-              <span className="hidden min-[420px]:inline">by </span>
-              <a
-                href="https://papermint.studio?ref=traks"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="border-b border-[#D8D7DE] pb-px text-[#6E6C7C] transition-colors hover:border-[#3D3B4F] hover:text-[#3D3B4F]"
-              >
-                Papermint Studio
-              </a>
-            </span>
           </div>
           <nav className="flex items-center gap-1">
-            <div className="hidden sm:flex sm:items-center sm:gap-1">
-              <NavLink id="features">Features</NavLink>
-              <NavLink id="how">How it works</NavLink>
-              <NavLink id="agents">Agents</NavLink>
-              <NavLink id="cost">Cost</NavLink>
+            <div className="hidden md:flex md:items-center md:gap-1">
+              <div className="hidden lg:contents">
+                <NavLink id="features">Features</NavLink>
+                <NavLink id="how">How it works</NavLink>
+                <NavLink id="agents">Agents</NavLink>
+                <NavLink id="cost">Cost</NavLink>
+              </div>
               <a
                 href="/docs"
                 className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
@@ -503,6 +493,17 @@ function LandingPage(): ReactElement {
               Watch the film
               <span className="font-mono text-[11px] font-medium text-[#9B9590]">1:55</span>
             </button>
+            <span className="whitespace-nowrap text-[13px] text-[#8C8A99]">
+              by{' '}
+              <a
+                href="https://papermint.studio?ref=traks"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border-b border-[#D8D7DE] pb-px text-[#6E6C7C] transition-colors hover:border-[#3D3B4F] hover:text-[#3D3B4F]"
+              >
+                Papermint Studio
+              </a>
+            </span>
           </motion.div>
 
           <motion.div
@@ -921,7 +922,7 @@ function LandingPage(): ReactElement {
               </a>
             )}
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <a
               href="/docs"
               className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
