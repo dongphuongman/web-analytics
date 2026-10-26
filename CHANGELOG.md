@@ -6,6 +6,10 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- Sort your sites. The Sites page has a sort menu next to search: date added (the order so far), name, or visitors today, busiest first. Your choice is remembered in this browser.
+
 ## 0.1.44 - 2026-10-16
 
 ### Added
