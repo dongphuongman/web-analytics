@@ -31,33 +31,36 @@ export function isBot(ua: string): boolean {
   return botName(ua) !== null;
 }
 
-// Cloud and hosting networks. People rarely browse from these, but scrapers
-// running real Chrome (stock UA, JS, screen width) do, and they would
-// otherwise count as visitors. Deliberately left out: consumer ISPs and the
-// networks big VPNs use (e.g. M247), so VPN users stay human.
-const DATACENTER_ASNS = new Set([
-  16509, // Amazon AWS
-  14618, // Amazon AWS (us-east-1)
-  396982, // Google Cloud (verified Googlebot is caught by UA / cf.verifiedBotCategory first)
-  8075, // Microsoft Azure
-  31898, // Oracle Cloud
-  45102, // Alibaba Cloud
-  132203, // Tencent Cloud
-  14061, // DigitalOcean
-  16276, // OVH
-  24940, // Hetzner
-  63949, // Akamai Connected Cloud (Linode)
-  20473, // Vultr
-  51167, // Contabo
-  212238, // Datacamp
-  30058, // FDCservers
-  398781, // hosting range sold to scraping proxy providers
+// Cloud and hosting networks, with the name a Bots-panel row shows (the
+// registry org names are often a street address, e.g. "6 COLLYER QUAY" for
+// Tencent). People rarely browse from these, but scrapers running real
+// Chrome (stock UA, JS, screen width) do, and they would otherwise count as
+// visitors. Deliberately left out: consumer ISPs and the networks big VPNs
+// use (e.g. M247), so VPN users stay human.
+const DATACENTER_ASNS = new Map<number, string>([
+  [16509, 'AWS'],
+  [14618, 'AWS'],
+  // Verified Googlebot is caught by its UA or cf.verifiedBotCategory first.
+  [396982, 'Google Cloud'],
+  [8075, 'Azure'],
+  [31898, 'Oracle Cloud'],
+  [45102, 'Alibaba Cloud'],
+  [132203, 'Tencent Cloud'],
+  [14061, 'DigitalOcean'],
+  [16276, 'OVH'],
+  [24940, 'Hetzner'],
+  [63949, 'Linode'],
+  [20473, 'Vultr'],
+  [51167, 'Contabo'],
+  [212238, 'Datacamp'],
+  [30058, 'FDCservers'],
+  // Hosting range sold to scraping proxy providers.
+  [398781, 'steel-axis'],
 ]);
 
 /** The subset of request.cf the classifier reads. */
 export interface RequestSignals {
   asn?: number;
-  asOrganization?: string;
   verifiedBotCategory?: string;
 }
 
@@ -69,8 +72,7 @@ export interface RequestSignals {
 export function signalBotName(cf: RequestSignals, webdriver: boolean): string | null {
   if (cf.verifiedBotCategory) return `Verified bot (${cf.verifiedBotCategory})`.slice(0, 64);
   if (webdriver) return 'Automated Browser';
-  if (cf.asn && DATACENTER_ASNS.has(cf.asn)) {
-    return `Datacenter (${cf.asOrganization || `AS${cf.asn}`})`.slice(0, 64);
-  }
+  const network = cf.asn ? DATACENTER_ASNS.get(cf.asn) : undefined;
+  if (network) return `Datacenter (${network})`;
   return null;
 }
