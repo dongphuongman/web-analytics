@@ -119,6 +119,10 @@
       payload.um = clip(tags[2], 256);
       payload.uc = clip(tags[3], 256);
     }
+    // Puppeteer, Playwright and Selenium set navigator.webdriver by default;
+    // headless scrapers that run JS otherwise look like desktop Chrome. Sent
+    // only when set, so ordinary payloads are unchanged.
+    if (navigator.webdriver) payload.wd = 1;
     const body = JSON.stringify(payload);
     fetch(endpoint, {
       method: 'POST',

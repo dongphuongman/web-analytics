@@ -8,7 +8,7 @@ import {
   type ValidatedTrackingEvent,
 } from '@traks/shared';
 import { parsePlausible, deriveSessionId } from './lib/plausible';
-import { botName } from './lib/bots';
+import { botName, signalBotName, type RequestSignals } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
 import { TRACKER_SCRIPT } from './lib/tracker-script';
@@ -323,7 +323,15 @@ app.post('/api/event', async c => {
   // reserved WebMCP tool-call event: headless/agentic browsers are exactly
   // who invokes a page's WebMCP tools, so their calls must be recorded.
   const ua = (c.req.header('user-agent') || '').slice(0, 512);
-  const bot = botName(ua);
+  // A human-looking UA can still be a bot: Cloudflare's network and
+  // verified-bot data, plus the tracker's webdriver flag, catch scrapers
+  // that run real Chrome.
+  const bot =
+    botName(ua) ??
+    signalBotName(
+      ((c.req.raw as unknown as { cf?: RequestSignals }).cf || {}) as RequestSignals,
+      event.wd === 1
+    );
   const isWebmcpCall = event.t === 'event' && event.en === AUTO_EVENTS.WEBMCP;
   if (bot && event.t !== 'pageview' && !isWebmcpCall) return c.json({ ok: true });
 

@@ -42,6 +42,8 @@ export const trackingEventSchema = z
       )
       .catch(0)
       .optional(),
+    // navigator.webdriver was set: an automated browser (see collect bots.ts).
+    wd: z.literal(1).optional().catch(undefined),
   })
   .strict();
 
