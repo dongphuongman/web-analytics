@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useWorkspace } from '@/lib/workspace';
 import { SiteTile } from '@/components/sites/SiteTile';
 import { AddSiteWizard } from '@/components/sites/AddSiteWizard';
+import { SiteSortMenu, SITE_SORT_NAMES, type SiteSort } from '@/components/sites/SiteSortMenu';
 
 export const Route = createLazyFileRoute('/portal/sites')({
   component: SitesPage,
@@ -19,6 +20,19 @@ const TILE_COLORS = [
   { deep: '#e07a5f', pastel: '#f2b5a4' },
 ];
 const PAGE_SIZE = 6;
+// The batch stats endpoint caps a request at 100 sites.
+const MAX_BATCH_SITES = 100;
+const SORT_STORAGE_KEY = 'traks.sites.sort';
+
+function storedSort(): SiteSort {
+  try {
+    const value = localStorage.getItem(SORT_STORAGE_KEY);
+    if (value && value in SITE_SORT_NAMES) return value as SiteSort;
+  } catch {
+    /* storage blocked */
+  }
+  return 'added';
+}
 
 function SitesPage(): ReactElement {
   const queryClient = useQueryClient();
@@ -26,6 +40,7 @@ function SitesPage(): ReactElement {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState<SiteSort>(storedSort);
 
   const {
     data: sitesData,
@@ -52,28 +67,47 @@ function SitesPage(): ReactElement {
     );
   }, [allSites, search]);
 
-  // Paginate: show only `visibleCount` sites
-  const visibleSites = filteredSites.slice(0, visibleCount);
-  const hasMore = filteredSites.length > visibleCount;
+  // Sorting by visitors needs today's stats for every matching site, not
+  // just the visible page, so that sort fetches them all (up to the batch
+  // cap); the other sorts keep fetching stats for the visible tiles only.
+  const sortsByStats = sort === 'visitors';
+  const statsPool = sortsByStats
+    ? filteredSites.slice(0, MAX_BATCH_SITES)
+    : filteredSites.slice(0, visibleCount);
 
-  // Stable string key for visible site IDs - prevents unnecessary refetches
-  const idsJoined = visibleSites.map((s: any) => s.id).join(',');
-  const visibleSiteIdsKey = useMemo(() => idsJoined, [idsJoined]);
-  const visibleSiteIds = useMemo(
-    () => (visibleSiteIdsKey ? visibleSiteIdsKey.split(',') : []),
-    [visibleSiteIdsKey]
+  // Stable string key for the fetched site IDs - prevents unnecessary refetches
+  const idsJoined = statsPool.map((s: any) => s.id).join(',');
+  const statsSiteIdsKey = useMemo(() => idsJoined, [idsJoined]);
+  const statsSiteIds = useMemo(
+    () => (statsSiteIdsKey ? statsSiteIdsKey.split(',') : []),
+    [statsSiteIdsKey]
   );
 
-  // Batch stats scoped to visible sites only
   const { data: batchStatsData, isLoading: batchStatsLoading } = useQuery({
-    queryKey: ['stats', 'batch', 'today', visibleSiteIdsKey],
-    queryFn: () => api.getBatchStats('today', visibleSiteIds),
-    enabled: visibleSiteIds.length > 0,
+    queryKey: ['stats', 'batch', 'today', statsSiteIdsKey],
+    queryFn: () => api.getBatchStats('today', statsSiteIds),
+    enabled: statsSiteIds.length > 0,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 
-  const batchStats = (batchStatsData as any)?.data || {};
+  const batchStats = useMemo(() => (batchStatsData as any)?.data || {}, [batchStatsData]);
+
+  // Date added keeps the API's order. Ties fall back to the name.
+  const sortedSites = useMemo(() => {
+    if (sort === 'added') return filteredSites;
+    const byName = (a: any, b: any): number =>
+      (a.name || a.domain).localeCompare(b.name || b.domain, undefined, { sensitivity: 'base' });
+    if (sort === 'name') return [...filteredSites].sort(byName);
+    return [...filteredSites].sort(
+      (a: any, b: any) =>
+        (batchStats[b.id]?.visitors ?? -1) - (batchStats[a.id]?.visitors ?? -1) || byName(a, b)
+    );
+  }, [filteredSites, sort, batchStats]);
+
+  // Paginate: show only `visibleCount` sites
+  const visibleSites = sortedSites.slice(0, visibleCount);
+  const hasMore = sortedSites.length > visibleCount;
 
   // Track tiles already rendered so only new ones animate in
   const renderedIdsRef = useRef(new Set<string>());
@@ -83,6 +117,17 @@ function SitesPage(): ReactElement {
     renderedIdsRef.current.clear();
     setSearch(value);
     setVisibleCount(PAGE_SIZE);
+  };
+
+  const handleSortChange = (value: SiteSort): void => {
+    renderedIdsRef.current.clear();
+    setSort(value);
+    setVisibleCount(PAGE_SIZE);
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, value);
+    } catch {
+      /* storage blocked: the choice lasts for this visit only */
+    }
   };
 
   const handleRefresh = (): void => {
@@ -124,6 +169,9 @@ function SitesPage(): ReactElement {
                 </button>
               )}
             </div>
+          )}
+          {!isLoading && allSites.length > 1 && (
+            <SiteSortMenu value={sort} onChange={handleSortChange} />
           )}
           <Button
             variant="outline"

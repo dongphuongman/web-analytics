@@ -6,6 +6,10 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- Sort your sites. The Sites page has a sort menu next to search: date added (the order so far), name, or visitors today, busiest first. Your choice is remembered in this browser.
+
 ### Changed
 
 - Scrapers that run a real browser no longer count as visitors. Pageviews from cloud and hosting networks (AWS, Google Cloud, Azure, OVH, Hetzner, DigitalOcean and similar), from browsers that report being automated (Puppeteer, Playwright, Selenium), and from Cloudflare-verified crawlers using a browser user agent are now counted in the Bots panel, named "Datacenter (network)" (e.g. "Datacenter (AWS)"), "Automated Browser" or "Verified bot (category)". Sites crawled this way will see visitor counts drop toward what other analytics tools report. People on consumer VPNs are still counted.
