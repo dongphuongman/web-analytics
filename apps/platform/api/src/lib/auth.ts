@@ -220,6 +220,12 @@ function createAuth(env: Bindings, origin: string) {
     ],
     user: {
       fields: { image: 'imageUrl' },
+      // Sign-up sets the site limit itself: the column DEFAULT is still 5,
+      // and changing it would make drizzle-kit rebuild the users table
+      // (see migration 0029).
+      additionalFields: {
+        siteLimit: { type: 'number', defaultValue: 10, input: false, returned: false },
+      },
     },
     emailAndPassword: {
       enabled: true,
