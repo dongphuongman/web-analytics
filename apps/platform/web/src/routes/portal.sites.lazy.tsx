@@ -27,12 +27,15 @@ const SORT_STORAGE_KEY = 'traks.sites.sort';
 function storedSort(): SiteSort {
   try {
     const value = localStorage.getItem(SORT_STORAGE_KEY);
-    if (value && value in SITE_SORT_NAMES) return value as SiteSort;
+    if (value && Object.hasOwn(SITE_SORT_NAMES, value)) return value as SiteSort;
   } catch {
     /* storage blocked */
   }
   return 'added';
 }
+
+const byName = (a: any, b: any): number =>
+  (a.name || a.domain).localeCompare(b.name || b.domain, undefined, { sensitivity: 'base' });
 
 function SitesPage(): ReactElement {
   const queryClient = useQueryClient();
@@ -67,13 +70,18 @@ function SitesPage(): ReactElement {
     );
   }, [allSites, search]);
 
+  // Date added keeps the API's order. Sorting by name needs no stats, so it
+  // happens before the fetch: the tiles shown are the ones fetched.
+  const orderedSites = useMemo(
+    () => (sort === 'name' ? [...filteredSites].sort(byName) : filteredSites),
+    [filteredSites, sort]
+  );
+
   // Sorting by visitors needs today's stats for every matching site, not
   // just the visible page, so that sort fetches them all (up to the batch
   // cap); the other sorts keep fetching stats for the visible tiles only.
   const sortsByStats = sort === 'visitors';
-  const statsPool = sortsByStats
-    ? filteredSites.slice(0, MAX_BATCH_SITES)
-    : filteredSites.slice(0, visibleCount);
+  const statsPool = orderedSites.slice(0, sortsByStats ? MAX_BATCH_SITES : visibleCount);
 
   // Stable string key for the fetched site IDs - prevents unnecessary refetches
   const idsJoined = statsPool.map((s: any) => s.id).join(',');
@@ -93,17 +101,15 @@ function SitesPage(): ReactElement {
 
   const batchStats = useMemo(() => (batchStatsData as any)?.data || {}, [batchStatsData]);
 
-  // Date added keeps the API's order. Ties fall back to the name.
+  // Busiest first; ties fall back to the name. Sites past the batch cap have
+  // no stats and sort last.
   const sortedSites = useMemo(() => {
-    if (sort === 'added') return filteredSites;
-    const byName = (a: any, b: any): number =>
-      (a.name || a.domain).localeCompare(b.name || b.domain, undefined, { sensitivity: 'base' });
-    if (sort === 'name') return [...filteredSites].sort(byName);
-    return [...filteredSites].sort(
+    if (!sortsByStats) return orderedSites;
+    return [...orderedSites].sort(
       (a: any, b: any) =>
         (batchStats[b.id]?.visitors ?? -1) - (batchStats[a.id]?.visitors ?? -1) || byName(a, b)
     );
-  }, [filteredSites, sort, batchStats]);
+  }, [orderedSites, sortsByStats, batchStats]);
 
   // Paginate: show only `visibleCount` sites
   const visibleSites = sortedSites.slice(0, visibleCount);
