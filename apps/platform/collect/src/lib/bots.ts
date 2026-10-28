@@ -36,13 +36,15 @@ export function isBot(ua: string): boolean {
 // Tencent). People rarely browse from these, but scrapers running real
 // Chrome (stock UA, JS, screen width) do, and they would otherwise count as
 // visitors. Deliberately left out: consumer ISPs and the networks big VPNs
-// use (e.g. M247), so VPN users stay human.
+// use (e.g. M247), so VPN users stay human, and Microsoft's AS8075, which
+// also carries its corporate network and Windows 365 / Azure Virtual Desktop
+// sessions. Every row these produce is stored as "Datacenter (<network>)",
+// so a query could count them as people again by that prefix.
 const DATACENTER_ASNS = new Map<number, string>([
   [16509, 'AWS'],
   [14618, 'AWS'],
   // Verified Googlebot is caught by its UA or cf.verifiedBotCategory first.
   [396982, 'Google Cloud'],
-  [8075, 'Azure'],
   [31898, 'Oracle Cloud'],
   [45102, 'Alibaba Cloud'],
   [132203, 'Tencent Cloud'],
