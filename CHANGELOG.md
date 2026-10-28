@@ -14,6 +14,7 @@ ships separately and is not listed here.
 
 ### Changed
 
+- The site dashboard header is restyled: hand-drawn sticker icons for its actions with no borders around them, a larger site name with its domain, Public and live count on one line, and the period picker as a switch whose ink thumb slides to the selected period. Everything in it works as before.
 - The Page flow card is redesigned and now sits directly above Goals. The page in the middle shows its visits and how they split (continued, left the site, started here), each neighbouring page shows its share of those visits with a line to the middle sized by it, and the page picker sits beside the title. Following a page builds a trail you can step back through. The paths API (`/stats/paths`) also returns these `totals`.
 - Scrapers that run a real browser no longer count as visitors. Pageviews from cloud and hosting networks (AWS, Google Cloud, OVH, Hetzner, DigitalOcean and similar), from browsers that report being automated (Puppeteer, Playwright, Selenium), and from Cloudflare-verified crawlers using a browser user agent are now counted in the Bots panel, named "Datacenter (network)" (e.g. "Datacenter (AWS)"), "Automated Browser" or "Verified bot (category)"; verified crawlers appear under the matching Bots tab (Search, AI or Social). Custom events from cloud networks are kept aside rather than discarded: they don't count toward goals, but they aren't lost. Sites crawled this way will see visitor counts drop toward what other analytics tools report. People on consumer VPNs are still counted.
 

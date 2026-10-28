@@ -2,21 +2,16 @@ import { useState, useEffect, useCallback, useRef, type ReactElement, type React
 import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
-  ArrowLeft,
   ArrowUpRight,
   ArrowDownRight,
-  RefreshCw,
   Settings,
   Code2,
   Copy,
   Check,
   Zap,
   Trash2,
-  Bookmark,
   BookmarkPlus,
   Globe,
-  MoreHorizontal,
-  Share2,
 } from 'lucide-react';
 import type {
   PeriodParam,
@@ -73,6 +68,7 @@ import {
   type AttributionRow,
 } from '@/components/analytics/ConversionsPanel';
 import { PeriodPicker, periodLabel } from '@/components/layout/PeriodPicker';
+import { Sticker } from '@/components/ui/sticker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 import { publicStatsApi, type StatsApi } from '@/lib/publicApi';
 import { propsSearch, type SiteSearch } from './portal.site.$siteId';
@@ -742,7 +738,9 @@ function ChartCard({
  *  dividers - the cluster must NOT clip (the dropdowns inside render
  *  absolutely within it), so slots round themselves. */
 const SEG_BTN =
-  'flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-full text-[#9B9590] hover:bg-[#F2F1ED] hover:text-foreground transition-colors cursor-pointer';
+  'flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-[10px] hover:bg-[#F2F1ED] transition-colors cursor-pointer';
+/** Sticker size inside a header action slot. */
+const SEG_ICON = 'h-[22px] w-[22px]';
 
 /** CSS-only tooltip for the cluster icons (works around any wrapper). Off on
  *  touch screens, where a tap leaves it stuck open. */
@@ -835,7 +833,7 @@ function SegmentsMenu({
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button className={SEG_BTN} title="Segments">
-            <Bookmark className="w-[15px] h-[15px]" />
+            <Sticker name="bookmark" className={SEG_ICON} />
           </button>
         </DropdownMenuTrigger>
         {/* On phones the toolbar sits at the left edge, so the menu opens
@@ -1718,17 +1716,18 @@ export function SiteDashboard({
         {/* Pinned only with room to spare: on phones it stacks to two rows,
             and on a landscape phone it would cover half the screen, so in
             both cases it scrolls away. */}
-        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-[#F9F8F6] px-4 py-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
+        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#E6E4DE] bg-[#F9F8F6] px-4 pb-4 pt-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
           <div className="flex min-w-0 items-center gap-3">
             {!shared && (
               <Link
                 to="/portal/sites"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#B5B0AA] transition-all hover:bg-white hover:text-[#3D3B4F] cursor-pointer"
+                title="All sites"
+                className="-mr-1 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[#F2F1ED] cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <Sticker name="back" className="h-5 w-5" />
               </Link>
             )}
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#F2F1ED]">
+            <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px] bg-white ring-1 ring-[#E6E4DE]">
               {site?.favicon ? (
                 <img
                   src={site.favicon}
@@ -1741,18 +1740,20 @@ export function SiteDashboard({
               )}
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-[19px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
+              <h1 className="truncate text-[21px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.025em]">
                 {site?.name || 'Analytics'}
               </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px]">
+              {/* Domain · Public · live, separated by small dots. */}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
                 {site?.domain && <span className="truncate text-[#9B9590]">{site.domain}</span>}
                 {!shared && site?.public && (
-                  <span className="rounded-[6px] bg-[#28E99F]/20 px-1.5 py-0.5 text-[11px] font-medium text-[#3D3B4F]">
-                    Public
-                  </span>
+                  <>
+                    {site?.domain && <span className="h-[3px] w-[3px] rounded-full bg-[#B5B0AA]" />}
+                    <span className="font-medium text-[#12A06B]">Public</span>
+                  </>
                 )}
                 {!shared && site?.domain && currentVisitors !== null && (
-                  <span className="h-[3px] w-[3px] rounded-full bg-[#D8D2CA]" />
+                  <span className="h-[3px] w-[3px] rounded-full bg-[#B5B0AA]" />
                 )}
                 {!shared && (
                   <LivePill
@@ -1765,9 +1766,9 @@ export function SiteDashboard({
             </div>
           </div>
           <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
-            {/* Actions fused into one segmented cluster; Delete lives in the
-                overflow so it never sits one slip away from Refresh. */}
-            <div className="flex items-center gap-0.5 rounded-full border border-[#E6E4DE] bg-white p-0.5">
+            {/* Borderless sticker actions; Delete lives in the overflow so it
+                never sits one slip away from Refresh. */}
+            <div className="flex items-center gap-0.5">
               {!shared && (
                 <>
                   <button
@@ -1775,7 +1776,7 @@ export function SiteDashboard({
                     className={SEG_BTN}
                     title="Installation"
                   >
-                    <Code2 className="w-[15px] h-[15px]" />
+                    <Sticker name="code" className={SEG_ICON} />
                   </button>
                   <SegmentsMenu
                     siteId={siteId}
@@ -1787,25 +1788,27 @@ export function SiteDashboard({
               )}
               {canManage && (
                 <IconTip label={site?.public ? 'Shared publicly' : 'Share'}>
-                  <button
-                    onClick={() => setShareOpen(true)}
-                    className={cn(SEG_BTN, site?.public && 'text-[#1FC285]')}
-                  >
-                    <Share2 className="w-[15px] h-[15px]" />
+                  <button onClick={() => setShareOpen(true)} className={SEG_BTN}>
+                    {/* A public site's share icon is outlined in mint. */}
+                    <Sticker
+                      name="share"
+                      className={cn(SEG_ICON, site?.public && 'text-[#12A06B]')}
+                    />
                   </button>
                 </IconTip>
               )}
               {canManage && (
                 <IconTip label="Site settings">
                   <button onClick={() => setEditOpen(true)} className={SEG_BTN}>
-                    <Settings className="w-[15px] h-[15px]" />
+                    <Sticker name="settings" className={SEG_ICON} />
                   </button>
                 </IconTip>
               )}
               <IconTip label="Refresh data">
                 <button onClick={handleRefresh} className={SEG_BTN}>
-                  <RefreshCw
-                    className={`w-[15px] h-[15px] ${refreshing || switching ? 'animate-spin' : ''}`}
+                  <Sticker
+                    name="refresh"
+                    className={cn(SEG_ICON, (refreshing || switching) && 'animate-spin')}
                   />
                 </button>
               </IconTip>
@@ -1814,7 +1817,7 @@ export function SiteDashboard({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className={SEG_BTN}>
-                        <MoreHorizontal className="w-[15px] h-[15px]" />
+                        <Sticker name="more" className={SEG_ICON} />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
@@ -1833,6 +1836,7 @@ export function SiteDashboard({
                 </IconTip>
               )}
             </div>
+            <span className="mx-1 hidden h-5 w-px bg-[#E6E4DE] md:block" />
             <PeriodPicker value={period} onChange={setPeriod} allowCustom={!shared} />
           </div>
         </div>

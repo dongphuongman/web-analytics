@@ -1,5 +1,5 @@
-import { useState, type ReactElement } from 'react';
-import { CalendarDays, Check, ChevronDown } from 'lucide-react';
+import { useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { Sticker } from '@/components/ui/sticker';
 import {
   CUSTOM_PERIOD_MIN_DATE,
   customPeriod,
@@ -229,6 +230,25 @@ export function PeriodPicker({
   const [customOpen, setCustomOpen] = useState(false);
   const isCustom = !isPreset(value);
   const shortLabel = isPreset(value) ? PERIOD_SHORT[value] : compactLabel(value);
+
+  // Desktop switch: the ink thumb slides under the selected segment. It is
+  // measured from the segment itself, so labels of any width line up, and
+  // re-measured when the track resizes (fonts loading, custom label).
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const place = (): void => {
+      const on = track.querySelector<HTMLElement>('[data-on="true"]');
+      setThumb(on ? { left: on.offsetLeft, width: on.offsetWidth } : null);
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(track);
+    return () => ro.disconnect();
+  }, [value, allowCustom, shortLabel]);
+
   return (
     <>
       {/* Mounted only while open, so each opening starts from the current value. */}
@@ -244,12 +264,9 @@ export function PeriodPicker({
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Period"
-            className="flex h-[38px] items-center gap-2 rounded-full border border-[#E6E4DE] bg-white pl-3.5 pr-3 text-[12.5px] font-semibold text-[#3D3B4F] cursor-pointer"
+            className="flex h-[36px] items-center gap-2 rounded-[10px] bg-[#F2F1ED] pl-2.5 pr-3 text-[12.5px] font-semibold text-[#3D3B4F] cursor-pointer"
           >
-            <CalendarDays
-              className="h-[15px] w-[15px] text-[#9B9590] max-[359px]:hidden"
-              strokeWidth={1.8}
-            />
+            <Sticker name="calendar" className="h-[18px] w-[18px] max-[359px]:hidden" />
             <span className="whitespace-nowrap">{shortLabel}</span>
             <ChevronDown className="h-3.5 w-3.5 text-[#9B9590]" />
           </DropdownMenuTrigger>
@@ -287,16 +304,27 @@ export function PeriodPicker({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="hidden md:inline-flex rounded-full border border-[#E6E4DE] bg-white p-1 gap-0.5">
+      <div
+        ref={trackRef}
+        className="relative hidden rounded-full bg-[#F2F1ED] p-[3px] md:inline-flex"
+      >
+        {thumb && (
+          <span
+            aria-hidden
+            className="absolute bottom-[3px] top-[3px] rounded-full bg-[#3D3B4F] transition-[left,width] duration-300 ease-[cubic-bezier(.3,.7,.2,1)] motion-reduce:transition-none"
+            style={{ left: thumb.left, width: thumb.width }}
+          />
+        )}
         {PERIOD_OPTIONS.map(option => (
           <button
             key={option.value}
+            data-on={value === option.value}
             onClick={() => onChange(option.value)}
             className={cn(
-              'rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all cursor-pointer',
+              'relative z-[1] rounded-full px-[11px] py-1.5 text-[12.5px] transition-colors cursor-pointer',
               value === option.value
-                ? 'bg-[#3D3B4F] text-white font-semibold'
-                : 'text-[#9B9590] hover:text-[#6b6560]'
+                ? 'font-semibold text-white'
+                : 'font-medium text-[#6E6C7C] hover:text-[#3D3B4F]'
             )}
           >
             {option.label}
@@ -304,17 +332,16 @@ export function PeriodPicker({
         ))}
         {allowCustom && (
           <button
+            data-on={isCustom}
             onClick={() => setCustomOpen(true)}
             aria-label="Custom range"
             title="Custom range"
             className={cn(
-              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-all cursor-pointer',
-              isCustom
-                ? 'bg-[#3D3B4F] text-white font-semibold'
-                : 'text-[#9B9590] hover:text-[#6b6560]'
+              'relative z-[1] flex items-center gap-1.5 rounded-full px-2 py-1 text-[12.5px] transition-colors cursor-pointer',
+              isCustom ? 'pr-3 font-semibold text-white' : 'font-medium text-[#6E6C7C]'
             )}
           >
-            <CalendarDays className="h-[13px] w-[13px]" strokeWidth={1.9} />
+            <Sticker name="calendar" className={cn('h-5 w-5', isCustom && 'text-white')} />
             {isCustom && <span className="whitespace-nowrap">{shortLabel}</span>}
           </button>
         )}
