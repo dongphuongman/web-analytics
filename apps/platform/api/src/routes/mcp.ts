@@ -33,8 +33,8 @@ interface ToolDef {
 const str = (desc: string): object => ({ type: 'string', description: desc });
 const period = {
   type: 'string',
-  enum: [...PERIODS],
-  description: "Reporting period ('today' is served live)",
+  pattern: `^(${PERIODS.join('|')}|\\d{4}-\\d{2}-\\d{2}\\.\\.\\d{4}-\\d{2}-\\d{2})$`,
+  description: `Reporting period: one of ${PERIODS.join(', ')} ('today' is served live), or a custom range of whole days in the site's timezone as YYYY-MM-DD..YYYY-MM-DD, both days inclusive (e.g. 2026-03-01..2026-03-15)`,
 };
 const goalProps = {
   siteId: str('Site id (from list_sites)'),
@@ -206,7 +206,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/all?period=${a.period}`,
+      path: `/api/analytics/${a.siteId}/stats/all?period=${encodeURIComponent(String(a.period))}`,
     }),
   },
   {
@@ -232,7 +232,7 @@ const TOOLS: ToolDef[] = [
       const goal = a.goalId ? `&goal=${encodeURIComponent(String(a.goalId))}` : '';
       return {
         method: 'GET',
-        path: `/api/analytics/${a.siteId}/stats/attribution?period=${a.period}&type=${type}${goal}`,
+        path: `/api/analytics/${a.siteId}/stats/attribution?period=${encodeURIComponent(String(a.period))}&type=${type}${goal}`,
       };
     },
   },
@@ -252,7 +252,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/paths?period=${a.period}&kind=${a.kind === 'prev' ? 'prev' : 'next'}&path=${encodeURIComponent(String(a.path))}`,
+      path: `/api/analytics/${a.siteId}/stats/paths?period=${encodeURIComponent(String(a.period))}&kind=${a.kind === 'prev' ? 'prev' : 'next'}&path=${encodeURIComponent(String(a.path))}`,
     }),
   },
   {
@@ -265,7 +265,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/goals?period=${a.period}`,
+      path: `/api/analytics/${a.siteId}/stats/goals?period=${encodeURIComponent(String(a.period))}`,
     }),
   },
   {
@@ -278,7 +278,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/funnel/${a.funnelId}?period=${a.period}`,
+      path: `/api/analytics/${a.siteId}/stats/funnel/${a.funnelId}?period=${encodeURIComponent(String(a.period))}`,
     }),
   },
   {
@@ -296,7 +296,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/event-props?period=${a.period}&event=${encodeURIComponent(String(a.event))}`,
+      path: `/api/analytics/${a.siteId}/stats/event-props?period=${encodeURIComponent(String(a.period))}&event=${encodeURIComponent(String(a.event))}`,
     }),
   },
   {
@@ -309,7 +309,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/events?period=${a.period}`,
+      path: `/api/analytics/${a.siteId}/stats/events?period=${encodeURIComponent(String(a.period))}`,
     }),
   },
   {
@@ -323,7 +323,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/webmcp?period=${a.period}`,
+      path: `/api/analytics/${a.siteId}/stats/webmcp?period=${encodeURIComponent(String(a.period))}`,
     }),
   },
   {
@@ -337,7 +337,7 @@ const TOOLS: ToolDef[] = [
     },
     request: a => ({
       method: 'GET',
-      path: `/api/analytics/${a.siteId}/stats/bots?period=${a.period}`,
+      path: `/api/analytics/${a.siteId}/stats/bots?period=${encodeURIComponent(String(a.period))}`,
     }),
   },
 ];

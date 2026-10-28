@@ -73,9 +73,19 @@ export function parsePlausible(body: unknown): PlausiblePayload | null {
 
   // Props: the script sends a JSON string under p (in hash mode p is NOT
   // props - it collides with the legacy meta key - so only trust objects
-  // there), the Events API sends an object under props.
+  // there), the Events API sends an object under props. A JSON string is
+  // re-serialized so stored props are always compact JSON: property filters
+  // and goal prop matches look for `"key":"value"` exactly.
   let ep: string | undefined;
-  const rawProps = b.props ?? b.p;
+  let rawProps = b.props ?? b.p;
+  if (typeof rawProps === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(rawProps);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) rawProps = parsed;
+    } catch {
+      // Not JSON: kept verbatim below, as before.
+    }
+  }
   if (typeof rawProps === 'object' && rawProps !== null) {
     const json = JSON.stringify(rawProps);
     if (json.length <= 1024 && json !== '{}') ep = json;
@@ -95,8 +105,11 @@ export function parsePlausible(body: unknown): PlausiblePayload | null {
   const sw = typeof b.w === 'number' && b.w > 0 && b.w <= 10000 ? Math.round(b.w) : 0;
   const r = str(b.r ?? b.referrer, 2048);
 
+  // Pageview and engagement props are kept too: Plausible users segment one
+  // site by them (e.g. a tenant id), and its script repeats the pageview's
+  // props on the engagement beacon, so property filters cover visit duration.
   if (name === 'pageview') {
-    return { domain, event: { t: 'pageview', p: pathname, h: hostname, r, sw, us, um, uc } };
+    return { domain, event: { t: 'pageview', p: pathname, h: hostname, r, sw, us, um, uc, ep } };
   }
   if (name === 'engagement') {
     // Plausible's engagement beacon carries engagement time in ms under `e`.
@@ -112,6 +125,7 @@ export function parsePlausible(body: unknown): PlausiblePayload | null {
         us,
         um,
         uc,
+        ep,
         ev: Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds / 1000, 86_400) : 0,
       },
     };

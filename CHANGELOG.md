@@ -9,10 +9,16 @@ ships separately and is not listed here.
 ### Added
 
 - Sort your sites. The Sites page has a sort menu next to search: date added (the order so far), name, or visitors today, busiest first. Your choice is remembered in this browser.
+- Custom date ranges. The period picker has a calendar option for any span of whole days, both ends included and counted in the site's timezone, so you can report on a campaign or a billing month. Ranges are shareable links (`?period=2026-03-01..2026-03-15`), work on public share pages, and are accepted by the API and every MCP tool that takes a period. A range that runs into today trails live numbers by a few minutes.
+- Filter by custom property. Click a property in a custom event's breakdown to filter the dashboard to the visits that carried it: their pageviews, goals and visit duration all count, while a page tagged with a different value (another tenant in the same visit) stays out. Combine up to five. The API takes the same filter as `props={"spaceid":"organizer-123","eventid":"event-456"}`, and saved segments keep it.
 
 ### Changed
 
 - Scrapers that run a real browser no longer count as visitors. Pageviews from cloud and hosting networks (AWS, Google Cloud, OVH, Hetzner, DigitalOcean and similar), from browsers that report being automated (Puppeteer, Playwright, Selenium), and from Cloudflare-verified crawlers using a browser user agent are now counted in the Bots panel, named "Datacenter (network)" (e.g. "Datacenter (AWS)"), "Automated Browser" or "Verified bot (category)"; verified crawlers appear under the matching Bots tab (Search, AI or Social). Custom events from cloud networks are kept aside rather than discarded: they don't count toward goals, but they aren't lost. Sites crawled this way will see visitor counts drop toward what other analytics tools report. People on consumer VPNs are still counted.
+
+### Fixed
+
+- Pageviews sent to the Plausible-compatible endpoint now keep their custom properties (they were dropped; custom events kept theirs), and so do Plausible engagement beacons, so visit duration follows a property filter. Properties sent as a JSON string are stored in compact form so they match filters and goal conditions exactly.
 
 ## 0.1.44 - 2026-10-16
 

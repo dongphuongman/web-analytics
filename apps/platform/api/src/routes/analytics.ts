@@ -3,14 +3,15 @@ import { z } from 'zod';
 import { validate } from '../lib/validate';
 import { eq, and, inArray } from 'drizzle-orm';
 import {
-  PERIODS,
   AUTO_EVENTS,
+  periodParamSchema,
+  bindEventsTable,
   TABLE_PROD,
   TABLE_DEV,
   R2SqlError,
   resolvePeriod,
   previousRange,
-  type Period,
+  type PeriodParam,
   type PeriodRange,
   type LiveStoreApi,
   type LiveTotals,
@@ -151,7 +152,7 @@ const FUNNEL_SINK_LAG_MS = 90_000;
  * (every dashboard tile re-scanning R2 on a timer). Windows shift by at most
  * one TTL, which is far below the sink's roll interval anyway.
  */
-function queryTime(period: Period = 'today'): Date {
+function queryTime(period: PeriodParam = 'today'): Date {
   const quantum = cacheTtlSeconds(period) * 1000;
   return new Date(Math.floor(Date.now() / quantum) * quantum);
 }
@@ -247,7 +248,9 @@ async function cachedR2Sql<T = Record<string, unknown>>(
   buildQuery: (table: string) => string
 ): Promise<T[]> {
   const config = getQueryConfig(c);
-  const sql = buildQuery(config.table);
+  // Filter subqueries name the table by placeholder; bind it with the rest.
+  const build = (table: string): string => bindEventsTable(buildQuery(table), table);
+  const sql = build(config.table);
   const key = await sha256Hex(`${config.bucketName}|${sql}`);
   const cacheKey = new Request(`https://r2sql-cache.traks.internal/${key}`);
   // Cast: the web app type-checks this file through the Hono RPC AppType
@@ -267,7 +270,7 @@ async function cachedR2Sql<T = Record<string, unknown>>(
       if (isMissingIngestTs(err) && isIngestPrune()) {
         setIngestPrune(false);
         console.warn('[r2sql] table has no __ingest_ts column; partition predicate disabled');
-        const retry = await queryR2SqlWithStats<T>(config, buildQuery);
+        const retry = await queryR2SqlWithStats<T>(config, build);
         return { rows: retry.rows, ms: Date.now() - started };
       }
       throw err;
@@ -378,6 +381,9 @@ const filterFields = {
   browser: z.string().max(64).optional(),
   os: z.string().max(64).optional(),
   device: z.string().max(32).optional(),
+  // Custom properties every row must carry, as a JSON object:
+  // {"spaceid":"organizer-123","eventid":"event-456"}.
+  props: z.string().max(2048).optional(),
 };
 
 type FilterParams = { [K in keyof typeof filterFields]?: string };
@@ -389,60 +395,60 @@ function parseFilters(q: FilterParams): LiveFilters | undefined {
 const filterQuery = z.object({ ...filterFields });
 
 const periodQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   ...filterFields,
 });
 const batchQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   siteIds: z.string().optional(),
 });
 const locationQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   type: z.enum(['country', 'region', 'city']).default('country'),
   ...filterFields,
 });
 const deviceQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   type: z.enum(['browser', 'os', 'device', 'size']).default('browser'),
   ...filterFields,
 });
 const eventPropsQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   event: z.string().min(1).max(256),
   ...filterFields,
 });
 const utmQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   type: z.enum(['source', 'medium', 'campaign']).default('source'),
   ...filterFields,
 });
 const pagesQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   type: z.enum(['top', 'entry', 'exit']).default('top'),
   ...filterFields,
 });
 const pathsQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   kind: z.enum(['next', 'prev']).default('next'),
   // The selected page: an exact path or a '/section/*' prefix.
   path: z.string().min(1).max(2048),
   ...filterFields,
 });
 const attributionQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   type: z.enum(['source', 'medium', 'campaign']).default('source'),
   // One goal's id; without it a session converts by completing any goal.
   goal: z.string().max(64).optional(),
   ...filterFields,
 });
 const botsQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   // One Bots-panel tab; omitted = every bot.
   group: z.enum(BOT_GROUPS).optional(),
   ...filterFields,
 });
 const linksQuery = z.object({
-  period: z.enum(PERIODS).default('today'),
+  period: periodParamSchema,
   type: z.enum(['outbound', 'download']).default('outbound'),
   ...filterFields,
 });
@@ -983,7 +989,7 @@ async function cachedSpecialGoals(
 export async function fetchDashboard(
   c: AppContext,
   site: SiteRecord,
-  period: Period
+  period: PeriodParam
 ): Promise<Response | Record<string, unknown>> {
   // Hot path: the whole today-dashboard from the site's live DO in a single
   // RPC. The DO is one single-threaded object per site, so the previous

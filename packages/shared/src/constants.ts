@@ -39,6 +39,47 @@ export const AUTO_EVENTS = {
 export const PERIODS = ['today', 'yesterday', '7d', '30d', '90d', '6m', '1y', 'all'] as const;
 export type Period = (typeof PERIODS)[number];
 
+/** A custom date range, 'YYYY-MM-DD..YYYY-MM-DD': whole days in the site's
+ *  timezone, both ends inclusive. */
+export type CustomPeriod = `${string}..${string}`;
+
+/** What the analytics endpoints accept: a preset or a custom range. */
+export type PeriodParam = Period | CustomPeriod;
+
+/** Earliest day a custom range may start (the all-time floor). */
+export const CUSTOM_PERIOD_MIN_DATE = '2000-01-01';
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar day in YYYY-MM-DD form (rejects 2026-02-30). */
+export function isIsoDay(value: string): boolean {
+  if (!ISO_DAY.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
+export function customPeriod(from: string, to: string): CustomPeriod {
+  return `${from}..${to}`;
+}
+
+/** The days of a custom range, or null when `period` is not a valid one. */
+export function parseCustomPeriod(period: string): { from: string; to: string } | null {
+  const parts = period.split('..');
+  if (parts.length !== 2) return null;
+  const [from, to] = parts;
+  if (!isIsoDay(from) || !isIsoDay(to)) return null;
+  if (from > to || from < CUSTOM_PERIOD_MIN_DATE) return null;
+  return { from, to };
+}
+
+export function isPreset(period: string): period is Period {
+  return (PERIODS as readonly string[]).includes(period);
+}
+
+export function isPeriodParam(value: unknown): value is PeriodParam {
+  return typeof value === 'string' && (isPreset(value) || parseCustomPeriod(value) !== null);
+}
+
 // Both envs use `traks.events` - physical isolation is per-bucket (R2_BUCKET_NAME env),
 // so the namespace/table pair can match without collision. Keeps naming symmetric.
 export const TABLE_PROD = 'traks.events';

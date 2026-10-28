@@ -34,6 +34,8 @@ import {
   escapeLike,
   isPagePrefix,
   propLikePatterns,
+  propKeyLikePattern,
+  parsePropsFilter,
   MAX_ATTRIBUTION_GOALS,
   botGroupSql,
 } from '@traks/shared';
@@ -308,6 +310,29 @@ export class SiteLiveStore extends DurableObject<unknown> {
     let sql = '';
     const params: string[] = [];
     for (const [key, value] of Object.entries(filters)) {
+      // Property filters select visits, like the cold path's propsFilterSql:
+      // a row carrying every property, or one lacking those keys whose
+      // session has such a row. The window is ~48h, so the session subquery
+      // needs no time bounds (SQLite runs it once per statement).
+      if (key === 'props' && typeof value === 'string') {
+        const pairs = parsePropsFilter(value);
+        if (!pairs) continue;
+        const carries: string[] = [];
+        const carriesParams: string[] = [];
+        for (const [k, v] of pairs) {
+          const patterns = propLikePatterns(k, v);
+          carries.push(`(${patterns.map(() => `event_meta LIKE ? ESCAPE '\\'`).join(' OR ')})`);
+          carriesParams.push(...patterns);
+        }
+        for (const [i, [k]] of pairs.entries()) {
+          sql += ` AND (${carries[i]} OR event_meta NOT LIKE ? ESCAPE '\\')`;
+          params.push(...propLikePatterns(k, pairs[i][1]), propKeyLikePattern(k));
+        }
+        const all = carries.join(' AND ');
+        sql += ` AND (${all} OR session_id IN (SELECT session_id FROM events WHERE session_id != '' AND ${all}))`;
+        params.push(...carriesParams, ...carriesParams);
+        continue;
+      }
       const col = DIMENSION_COLUMNS[key as LiveDimension];
       if (!col || typeof value !== 'string') continue;
       // The page filter alone also understands the '/section/*' prefix syntax.
@@ -520,7 +545,12 @@ export class SiteLiveStore extends DurableObject<unknown> {
     if (!input || typeof input !== 'object') return undefined;
     const out: LiveFilters = {};
     for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-      if (!(key in DIMENSION_COLUMNS) || typeof value !== 'string' || value === '') continue;
+      if (typeof value !== 'string' || value === '') continue;
+      if (key === 'props') {
+        if (parsePropsFilter(value)) out.props = value;
+        continue;
+      }
+      if (!(key in DIMENSION_COLUMNS)) continue;
       out[key as LiveDimension] = value.slice(0, 2048);
     }
     return Object.keys(out).length > 0 ? out : undefined;

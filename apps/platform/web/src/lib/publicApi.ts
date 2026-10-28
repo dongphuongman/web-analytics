@@ -1,4 +1,4 @@
-import type { Period, PublicSiteInfo } from '@traks/shared';
+import type { PeriodParam, PublicSiteInfo } from '@traks/shared';
 import { ApiError, api, type AnalyticsFilters } from '@/lib/api';
 
 /**
@@ -60,46 +60,50 @@ const stats = (siteId: string, endpoint: string, query: Query): Promise<any> =>
 const notShared = (): Promise<never> => Promise.reject(new ApiError(404, 'Not shared'));
 
 export const publicStatsApi: StatsApi = {
-  getAllStats: (siteId: string, period: Period) => stats(siteId, 'all', { period }),
-  getMainStats: (siteId: string, period: Period, filters?: AnalyticsFilters) =>
+  getAllStats: (siteId: string, period: PeriodParam) => stats(siteId, 'all', { period }),
+  getMainStats: (siteId: string, period: PeriodParam, filters?: AnalyticsFilters) =>
     stats(siteId, 'main', { period, ...filters }),
-  getTimeseries: (siteId: string, period: Period, filters?: AnalyticsFilters) =>
+  getTimeseries: (siteId: string, period: PeriodParam, filters?: AnalyticsFilters) =>
     stats(siteId, 'timeseries', { period, ...filters }),
   getTopPages: (
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'top' | 'entry' | 'exit',
     filters?: AnalyticsFilters
   ) => stats(siteId, 'pages', { period, type, ...filters }),
-  getTopReferrers: (siteId: string, period: Period, filters?: AnalyticsFilters) =>
+  getTopReferrers: (siteId: string, period: PeriodParam, filters?: AnalyticsFilters) =>
     stats(siteId, 'referrers', { period, ...filters }),
-  getAiSources: (siteId: string, period: Period, filters?: AnalyticsFilters) =>
+  getAiSources: (siteId: string, period: PeriodParam, filters?: AnalyticsFilters) =>
     stats(siteId, 'ai-sources', { period, ...filters }),
   getUtm: (
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'source' | 'medium' | 'campaign',
     filters?: AnalyticsFilters
   ) => stats(siteId, 'utm', { period, type, ...filters }),
   getLocations: (
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'country' | 'region' | 'city',
     filters?: AnalyticsFilters
   ) => stats(siteId, 'locations', { period, type, ...filters }),
   getDevices: (
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'browser' | 'os' | 'device' | 'size',
     filters?: AnalyticsFilters
   ) => stats(siteId, 'devices', { period, type, ...filters }),
-  getGoalStats: (siteId: string, period: Period, filters?: AnalyticsFilters) =>
+  getGoalStats: (siteId: string, period: PeriodParam, filters?: AnalyticsFilters) =>
     stats(siteId, 'goals', { period, ...filters }),
-  getFunnelStats: (siteId: string, funnelId: string, period: Period, filters?: AnalyticsFilters) =>
-    stats(siteId, `funnel/${encodeURIComponent(funnelId)}`, { period, ...filters }),
-  getEvents: (siteId: string, period: Period, filters?: AnalyticsFilters) =>
+  getFunnelStats: (
+    siteId: string,
+    funnelId: string,
+    period: PeriodParam,
+    filters?: AnalyticsFilters
+  ) => stats(siteId, `funnel/${encodeURIComponent(funnelId)}`, { period, ...filters }),
+  getEvents: (siteId: string, period: PeriodParam, filters?: AnalyticsFilters) =>
     stats(siteId, 'events', { period, ...filters }),
-  getEventProps: (siteId: string, period: Period, event: string, filters?: AnalyticsFilters) =>
+  getEventProps: (siteId: string, period: PeriodParam, event: string, filters?: AnalyticsFilters) =>
     stats(siteId, 'event-props', { period, event, ...filters }),
   getLinks: notShared,
   getBots: notShared,

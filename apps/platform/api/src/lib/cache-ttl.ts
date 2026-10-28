@@ -1,11 +1,11 @@
-import type { Period } from '@traks/shared';
+import { isPreset, type PeriodParam } from '@traks/shared';
 
 /**
  * Result cache TTL per period. Long windows barely change; 'today' tracks
  * ingest. The SQL text embeds `now` quantized to this TTL, so the TTL is also
  * the cache-key bucket - the pre-warm cron aligns to the same boundaries.
  */
-export function cacheTtlSeconds(period: Period): number {
+export function cacheTtlSeconds(period: PeriodParam): number {
   switch (period) {
     case 'today':
       return 60;
@@ -21,9 +21,9 @@ const SETTLE_MS = 60 * 60 * 1000;
 const SETTLED_TTL_SECONDS = 24 * 60 * 60;
 
 /**
- * Freshness TTL for a result, given the window it covers. 'yesterday' is
- * settled data whose SQL only changes at midnight, so one scan per day is
- * the right cost - the generic 15-minute TTL re-scanned its nine dashboard
+ * Freshness TTL for a result, given the window it covers. 'yesterday', and a
+ * custom range that ended before today, are settled data whose SQL does not
+ * change, so one scan per day is the right cost - the generic 15-minute TTL re-scanned its nine dashboard
  * queries in the background every bucket for numbers that cannot change.
  *
  * The TTL is the time since the window settled (floored at the generic TTL
@@ -32,9 +32,11 @@ const SETTLED_TTL_SECONDS = 24 * 60 * 60;
  * scan run in the first hour after midnight is served once past that hour,
  * then refreshed behind the response like any stale entry.
  */
-export function freshTtlSeconds(period: Period, range: { to: string }): number {
+export function freshTtlSeconds(period: PeriodParam, range: { to: string }): number {
   const base = cacheTtlSeconds(period);
-  if (period !== 'yesterday') return base;
+  // A custom range still running into today has `to` = now, so it is never
+  // past its settle point and keeps the generic TTL.
+  if (period !== 'yesterday' && isPreset(period)) return base;
   const sinceSettled = (Date.now() - (Date.parse(range.to) + SETTLE_MS)) / 1000;
   return Math.max(base, Math.min(SETTLED_TTL_SECONDS, sinceSettled));
 }

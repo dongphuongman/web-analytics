@@ -19,7 +19,7 @@ import {
   Share2,
 } from 'lucide-react';
 import type {
-  Period,
+  PeriodParam,
   MainStats,
   FunnelDef,
   FunnelStat,
@@ -55,7 +55,7 @@ import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard, type PanelItem } from '@/components/analytics/PanelCard';
 import { LivePill } from '@/components/analytics/LivePill';
 import { LiveModal } from '@/components/analytics/LiveModal';
-import { FilterChips, FILTER_LABELS } from '@/components/analytics/FilterChips';
+import { FilterChips, FILTER_LABELS, describeFilter } from '@/components/analytics/FilterChips';
 import { useRealtime } from '@/lib/useRealtime';
 import { CountryFlag, countryName } from '@/components/analytics/CountryFlag';
 import { DimensionIcon } from '@/components/analytics/DimensionIcon';
@@ -72,12 +72,18 @@ import {
   type AttributionDim,
   type AttributionRow,
 } from '@/components/analytics/ConversionsPanel';
-import { PERIOD_NAMES, PeriodPicker } from '@/components/layout/PeriodPicker';
+import { PeriodPicker, periodLabel } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 import { publicStatsApi, type StatsApi } from '@/lib/publicApi';
-import type { SiteSearch } from './portal.site.$siteId';
+import { propsSearch, type SiteSearch } from './portal.site.$siteId';
 import { FieldError } from '@/components/ui/field-error';
-import { domainInputError, normalizeDomain, requiredTextError } from '@traks/shared';
+import {
+  domainInputError,
+  normalizeDomain,
+  requiredTextError,
+  propsFilterValue,
+  MAX_PROP_FILTERS,
+} from '@traks/shared';
 import { useCollectUrl } from '@/lib/config';
 import { ShareDialog } from '@/components/sites/ShareDialog';
 
@@ -85,12 +91,12 @@ import { ShareDialog } from '@/components/sites/ShareDialog';
 // (millisecond queries, zero ingest delay), so a 15s poll gives a live feel
 // at negligible cost. Historical periods barely change and are covered by
 // staleTime + the manual refresh button.
-function getRefetchInterval(period: Period): number | false {
+function getRefetchInterval(period: PeriodParam): number | false {
   return period === 'today' ? 15_000 : false;
 }
 
 // staleTime per period - longer periods change less frequently
-function getStaleTime(period: Period): number {
+function getStaleTime(period: PeriodParam): number {
   switch (period) {
     case 'today':
       return 15_000;
@@ -636,7 +642,7 @@ function ChartCard({
   timeseriesError: boolean;
   metric: ChartMetric;
   onMetricChange: (m: ChartMetric) => void;
-  period: Period;
+  period: PeriodParam;
 }): ReactElement {
   const viewsPerVisit =
     stats && stats.sessions > 0 ? (stats.pageviews / stats.sessions).toFixed(2) : '0';
@@ -717,7 +723,7 @@ function ChartCard({
                 ? 'Total Pageviews'
                 : 'Visits'}
           </h3>
-          <span className="text-[12px] text-[#B5B0AA]">{PERIOD_NAMES[period]}</span>
+          <span className="text-[12px] text-[#B5B0AA]">{periodLabel(period)}</span>
         </div>
         <TimeseriesChart
           data={timeseries}
@@ -867,10 +873,7 @@ function SegmentsMenu({
                   <span className="block truncate text-[11px] text-[#9B9590]">
                     {Object.entries(segment.filters)
                       .filter(([, v]) => v)
-                      .map(
-                        ([k, v]) =>
-                          `${FILTER_LABELS[k as keyof AnalyticsFilters] ?? k}: ${k === 'country' ? countryName(v) : v}`
-                      )
+                      .map(([k, v]) => describeFilter(k as keyof AnalyticsFilters, v))
                       .join(' · ')}
                   </span>
                 </span>
@@ -922,8 +925,16 @@ function SegmentsMenu({
                     key={key}
                     className="flex items-center gap-1.5 rounded-full bg-muted py-1 px-3 text-[12px] text-[#3D3B4F]"
                   >
-                    <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
-                    <span className="max-w-[160px] truncate font-medium">{value}</span>
+                    {key === 'props' ? (
+                      <span className="max-w-[220px] truncate font-medium">
+                        {describeFilter(key, value)}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
+                        <span className="max-w-[160px] truncate font-medium">{value}</span>
+                      </>
+                    )}
                   </span>
                 ))}
               </div>
@@ -998,18 +1009,21 @@ export function SiteDashboard({
   const { period: searchPeriod } = search;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const period: Period = searchPeriod || 'today';
+  const period: PeriodParam = searchPeriod || 'today';
 
   const filters: AnalyticsFilters = {};
   for (const key of Object.keys(FILTER_LABELS) as (keyof AnalyticsFilters)[]) {
     const value = (search as Record<string, unknown>)[key];
     if (typeof value === 'string' && value) filters[key] = value;
   }
+  // The props filter is an object in the URL; the API takes its JSON text.
+  const propsFilter = propsSearch(search.props);
+  if (propsFilter) filters.props = JSON.stringify(propsFilter);
   const filterKey = JSON.stringify(filters);
   const hasFilters = Object.keys(filters).length > 0;
 
   const setPeriod = useCallback(
-    (p: Period) => {
+    (p: PeriodParam) => {
       navigate({
         to: basePath,
         params: { siteId },
@@ -1042,8 +1056,30 @@ export function SiteDashboard({
         params: { siteId },
         search: prev => ({
           ...prev,
-          ...Object.fromEntries(keys.map(k => [k, next[k] || undefined])),
+          ...Object.fromEntries(
+            keys.map(k => [k, k === 'props' ? propsSearch(next[k]) : next[k] || undefined])
+          ),
         }),
+        replace: true,
+      });
+    },
+    [navigate, siteId, basePath]
+  );
+
+  // Property filters live in one `props` param; these add or drop one pair.
+  const setPropFilter = useCallback(
+    (key: string, value: string | null) => {
+      navigate({
+        to: basePath,
+        params: { siteId },
+        search: prev => {
+          let pairs = Object.entries(propsSearch(prev.props) ?? {}).filter(([k]) => k !== key);
+          if (value !== null) pairs = [...pairs.slice(-(MAX_PROP_FILTERS - 1)), [key, value]];
+          return {
+            ...prev,
+            props: pairs.length > 0 ? propsSearch(propsFilterValue(pairs)) : undefined,
+          };
+        },
         replace: true,
       });
     },
@@ -1084,7 +1120,8 @@ export function SiteDashboard({
         search: prev => {
           const next = { ...prev } as Record<string, unknown>;
           for (const key of Object.keys(FILTER_LABELS)) {
-            next[key] = (segmentFilters as Record<string, string | undefined>)[key] || undefined;
+            const value = (segmentFilters as Record<string, string | undefined>)[key];
+            next[key] = key === 'props' ? propsSearch(value) : value || undefined;
           }
           return next;
         },
@@ -1809,7 +1846,12 @@ export function SiteDashboard({
 
         {/* Active filters */}
         {hasFilters && (
-          <FilterChips filters={filters} onRemove={removeFilter} onClear={clearFilters} />
+          <FilterChips
+            filters={filters}
+            onRemove={removeFilter}
+            onRemoveProp={key => setPropFilter(key, null)}
+            onClear={clearFilters}
+          />
         )}
 
         {/* Dimmed while a period/filter switch still shows the previous
@@ -2016,6 +2058,15 @@ export function SiteDashboard({
                       isLoading={eventPropsQ.isLoading}
                       isError={eventPropsQ.isError}
                       emptyText="No properties on this event"
+                      // Filters the whole dashboard to rows carrying this property.
+                      onItemClick={item => {
+                        const row = (
+                          (eventPropsQ.data as any)?.data as
+                            | { key: string; value: string }[]
+                            | undefined
+                        )?.find(p => `${p.key}: ${p.value}` === item.name);
+                        if (row) setPropFilter(row.key, row.value);
+                      }}
                       headerAction={
                         <button
                           onClick={() => setSelectedEvent(null)}
@@ -2176,7 +2227,7 @@ export function SiteDashboard({
             siteId={siteId}
             siteLabel={site?.domain}
             stats={(goalStatsQ.data as any)?.data}
-            periodLabel={PERIOD_NAMES[period]}
+            periodLabel={periodLabel(period)}
             onAdd={() => {
               setGoalsOpen(false);
               setGoalForm({ goal: null });

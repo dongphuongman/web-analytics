@@ -69,6 +69,8 @@ export interface SegmentFilters {
   browser?: string;
   os?: string;
   device?: string;
+  /** Custom-property filter: canonical JSON object, e.g. {"spaceid":"a"}. */
+  props?: string;
 }
 
 export interface SegmentDef {

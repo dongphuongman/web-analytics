@@ -25,9 +25,43 @@ export type LiveDimension =
 
 /**
  * Dimension -> exact-match value filters, applied on top of every dashboard
- * query (click-to-filter). Keys are the canonical column dimensions.
+ * query (click-to-filter). Keys are the canonical column dimensions, plus
+ * `props`: custom properties every matching row must carry, as the canonical
+ * JSON object from propsFilterValue() (matched against event_meta).
  */
-export type LiveFilters = Partial<Record<LiveDimension, string>>;
+export type LiveFilterKey = LiveDimension | 'props';
+export type LiveFilters = Partial<Record<LiveFilterKey, string>>;
+
+/** Most properties one filter may combine. */
+export const MAX_PROP_FILTERS = 5;
+
+/**
+ * Property pairs from a props filter ('{"spaceid":"a","eventid":"b"}'), or
+ * null when it is not a flat object of 1..MAX_PROP_FILTERS short scalars.
+ * Numbers and booleans are compared as their text, like goal prop matches.
+ */
+export function parsePropsFilter(value: string): [string, string][] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const pairs: [string, string][] = [];
+  for (const [key, raw] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!['string', 'number', 'boolean'].includes(typeof raw)) return null;
+    const v = String(raw);
+    if (!key || key.length > 256 || !v || v.length > 512) return null;
+    pairs.push([key, v]);
+  }
+  return pairs.length > 0 && pairs.length <= MAX_PROP_FILTERS ? pairs : null;
+}
+
+/** Canonical props filter text: keys sorted, so equal filters share cache keys. */
+export function propsFilterValue(pairs: [string, string][]): string {
+  return JSON.stringify(Object.fromEntries([...pairs].sort(([a], [b]) => (a < b ? -1 : 1))));
+}
 
 /** Dashboard-facing filter parameter names (URL search params / API query). */
 export type FilterParam =
@@ -41,10 +75,11 @@ export type FilterParam =
   | 'city'
   | 'browser'
   | 'os'
-  | 'device';
+  | 'device'
+  | 'props';
 
 /** Filter parameter -> canonical column dimension. */
-export const FILTER_PARAM_TO_DIMENSION: Record<FilterParam, LiveDimension> = {
+export const FILTER_PARAM_TO_DIMENSION: Record<FilterParam, LiveFilterKey> = {
   page: 'pathname',
   source: 'referrer_hostname',
   utmSource: 'utm_source',
@@ -56,6 +91,7 @@ export const FILTER_PARAM_TO_DIMENSION: Record<FilterParam, LiveDimension> = {
   browser: 'browser',
   os: 'os',
   device: 'device_type',
+  props: 'props',
 };
 
 /** Map dashboard filter params to LiveFilters; undefined when nothing is set. */
@@ -65,10 +101,17 @@ export function toLiveFilters(
   const filters: LiveFilters = {};
   for (const [param, dimension] of Object.entries(FILTER_PARAM_TO_DIMENSION) as [
     FilterParam,
-    LiveDimension,
+    LiveFilterKey,
   ][]) {
     const value = params[param];
-    if (value !== undefined && value !== '') filters[dimension] = value;
+    if (value === undefined || value === '') continue;
+    if (dimension === 'props') {
+      // Malformed props filters are dropped, never matched literally.
+      const pairs = parsePropsFilter(value);
+      if (pairs) filters.props = propsFilterValue(pairs);
+      continue;
+    }
+    filters[dimension] = value;
   }
   return Object.keys(filters).length > 0 ? filters : undefined;
 }

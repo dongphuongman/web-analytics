@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import type { Period } from '@traks/shared';
+import { isPreset, type Period } from '@traks/shared';
 import type { Bindings, Variables } from '../types';
 import { cacheTtlSeconds } from './cache-ttl';
 
@@ -49,6 +49,7 @@ const FILTER_KEYS = [
   'browser',
   'os',
   'device',
+  'props',
 ];
 
 interface WarmRecord {
@@ -80,7 +81,10 @@ export function noteSiteView(
   const hours = prewarmHours(env);
   if (hours === 0) return;
   if (FILTER_KEYS.some(k => query[k])) return;
-  const period = (query.period ?? 'today') as Period;
+  // Custom ranges are one-off views: warming them would only repeat scans.
+  const raw = query.period ?? 'today';
+  if (!isPreset(raw)) return;
+  const period: Period = raw;
   const throttleKey = `${siteId}|${period}`;
   const now = Date.now();
   if ((lastNoted.get(throttleKey) ?? 0) > now - NOTE_THROTTLE_MS) return;

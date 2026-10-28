@@ -1,4 +1,12 @@
 import { z } from 'zod';
+import { isPeriodParam, type PeriodParam } from './constants';
+
+/** Analytics `period`: a preset ('7d') or a custom range ('2026-03-01..2026-03-15'). */
+export const periodParamSchema = z
+  .custom<PeriodParam>(isPeriodParam, {
+    message: "Unknown period: use a preset such as '7d', or YYYY-MM-DD..YYYY-MM-DD",
+  })
+  .default('today');
 
 /** Free-text tracker field: overlong values are trimmed, not rejected. */
 const clipped = (max: number) => z.string().transform(s => s.slice(0, max));
@@ -274,6 +282,7 @@ export const segmentFiltersSchema = z
     browser: z.string().min(1).max(128),
     os: z.string().min(1).max(128),
     device: z.string().min(1).max(128),
+    props: z.string().min(1).max(2048),
   })
   .partial()
   .refine(f => Object.values(f).some(v => v), {

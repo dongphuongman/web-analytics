@@ -100,7 +100,9 @@ options as goals:
   (kind 'next') or before ('prev') a page or '/section/*'.
 - \`get_attribution {siteId, period, type, goalId}\`: conversions by UTM
   source, medium or campaign, for one goal or any goal.
-- Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live).
+- Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live),
+  or a custom range of whole days in the site's timezone:
+  2026-03-01..2026-03-15 (both days inclusive).
 
 ## Privacy rules (do not violate)
 

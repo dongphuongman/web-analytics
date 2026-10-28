@@ -1,6 +1,6 @@
 import { hc } from 'hono/client';
 import type { AppType } from '@traks/platform-api';
-import type { BotGroup, Period } from '@traks/shared';
+import type { BotGroup, PeriodParam } from '@traks/shared';
 import { authClient } from '@/lib/auth-client';
 
 /** Click-to-filter params, passed through to the analytics endpoints. */
@@ -16,6 +16,8 @@ export interface AnalyticsFilters {
   browser?: string;
   os?: string;
   device?: string;
+  /** Custom properties every row must carry: canonical JSON from propsFilterValue(). */
+  props?: string;
 }
 
 // Same-origin: /api/* is served by the API worker via a zone route in prod
@@ -392,7 +394,7 @@ export const api = {
   async getFunnelStats(
     siteId: string,
     funnelId: string,
-    period: Period,
+    period: PeriodParam,
     filters?: AnalyticsFilters
   ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.funnel[':funnelId'].$get({
@@ -403,7 +405,11 @@ export const api = {
     return res.json();
   },
 
-  async getGoalStats(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getGoalStats(
+    siteId: string,
+    period: PeriodParam,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.goals.$get({
       param: { siteId },
       query: { period, ...filters },
@@ -413,8 +419,8 @@ export const api = {
   },
 
   // Analytics
-  async getBatchStats(period: Period, siteIds?: string[]): Promise<any> {
-    const query: { period: Period; siteIds?: string } = { period };
+  async getBatchStats(period: PeriodParam, siteIds?: string[]): Promise<any> {
+    const query: { period: PeriodParam; siteIds?: string } = { period };
     if (siteIds && siteIds.length > 0) {
       query.siteIds = siteIds.join(',');
     }
@@ -423,7 +429,7 @@ export const api = {
     return res.json();
   },
 
-  async getAllStats(siteId: string, period: Period): Promise<any> {
+  async getAllStats(siteId: string, period: PeriodParam): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.all.$get({
       param: { siteId },
       query: { period },
@@ -432,7 +438,11 @@ export const api = {
     return res.json();
   },
 
-  async getMainStats(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getMainStats(
+    siteId: string,
+    period: PeriodParam,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.main.$get({
       param: { siteId },
       query: { period, ...filters },
@@ -441,7 +451,11 @@ export const api = {
     return res.json();
   },
 
-  async getTimeseries(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getTimeseries(
+    siteId: string,
+    period: PeriodParam,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.timeseries.$get({
       param: { siteId },
       query: { period, ...filters },
@@ -452,7 +466,7 @@ export const api = {
 
   async getTopPages(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'top' | 'entry' | 'exit',
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -466,7 +480,7 @@ export const api = {
 
   async getLinks(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'outbound' | 'download',
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -478,7 +492,11 @@ export const api = {
     return res.json();
   },
 
-  async getTopReferrers(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getTopReferrers(
+    siteId: string,
+    period: PeriodParam,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.referrers.$get({
       param: { siteId },
       query: { period, ...filters },
@@ -487,7 +505,11 @@ export const api = {
     return res.json();
   },
 
-  async getAiSources(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getAiSources(
+    siteId: string,
+    period: PeriodParam,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats['ai-sources'].$get({
       param: { siteId },
       query: { period, ...filters },
@@ -498,7 +520,7 @@ export const api = {
 
   async getUtm(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'source' | 'medium' | 'campaign',
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -512,7 +534,7 @@ export const api = {
 
   async getLocations(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'country' | 'region' | 'city',
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -526,7 +548,7 @@ export const api = {
 
   async getDevices(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'browser' | 'os' | 'device' | 'size',
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -547,7 +569,7 @@ export const api = {
     return res.json();
   },
 
-  async getEvents(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getEvents(siteId: string, period: PeriodParam, filters?: AnalyticsFilters): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.events.$get({
       param: { siteId },
       query: { period, ...filters },
@@ -556,7 +578,7 @@ export const api = {
     return res.json();
   },
 
-  async getWebmcp(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+  async getWebmcp(siteId: string, period: PeriodParam, filters?: AnalyticsFilters): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.webmcp.$get({
       param: { siteId },
       query: { period, ...filters },
@@ -567,7 +589,7 @@ export const api = {
 
   async getBots(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     filters?: AnalyticsFilters,
     group?: BotGroup
   ): Promise<any> {
@@ -582,7 +604,7 @@ export const api = {
   /** Pages viewed right after ('next') or before ('prev') `path`. */
   async getPaths(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     kind: 'next' | 'prev',
     path: string,
     filters?: AnalyticsFilters
@@ -599,7 +621,7 @@ export const api = {
    *  when `goalId` is omitted). */
   async getAttribution(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     type: 'source' | 'medium' | 'campaign',
     goalId?: string,
     filters?: AnalyticsFilters
@@ -614,7 +636,7 @@ export const api = {
 
   async getEventProps(
     siteId: string,
-    period: Period,
+    period: PeriodParam,
     event: string,
     filters?: AnalyticsFilters
   ): Promise<any> {

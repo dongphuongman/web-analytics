@@ -1,6 +1,6 @@
-import { AUTO_EVENTS } from './constants';
-import type { Period } from './constants';
-import type { LiveDimension, LiveFilters } from './live';
+import { AUTO_EVENTS, isPreset, parseCustomPeriod } from './constants';
+import type { PeriodParam } from './constants';
+import { parsePropsFilter, type LiveDimension, type LiveFilters } from './live';
 import { AI_HOSTNAME_IN, aiSourceCaseSql } from './ai-sources';
 import { botGroupNames, type BotGroup } from './bots';
 
@@ -193,6 +193,21 @@ export function propLikePatterns(key: string, value: string): string[] {
   return patterns;
 }
 
+/** LIKE pattern for event_meta containing key `key` at all (any value). */
+export function propKeyLikePattern(key: string): string {
+  return `%${escapeLike(`${JSON.stringify(key)}:`)}%`;
+}
+
+/**
+ * Stands in for the events table inside filter subqueries, which are built
+ * before the table is known; the API binds it with bindEventsTable().
+ */
+export const EVENTS_TABLE = '{{events}}';
+
+export function bindEventsTable(sql: string, table: string): string {
+  return sql.split(EVENTS_TABLE).join(table);
+}
+
 /** SQL condition for an event-prop exact match against event_meta. */
 export function propMatchSql(key: string, value: string): string {
   const conds = propLikePatterns(key, value).map(p => `event_meta LIKE '${esc(p)}' ESCAPE '\\'`);
@@ -323,7 +338,53 @@ export function computeBucketKeys(
  *
  * The `buckets` array lets routes zero-fill timeseries gaps.
  */
-export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRange {
+/** Local midnight starting calendar day `day` (YYYY-MM-DD) in `tz`. */
+function midnightOfDay(day: string, tz: string): Date {
+  // Noon UTC falls on the same date in nearly every zone; the far-east and
+  // far-west ones are stepped back onto it.
+  const guess = startOfDayInTz(new Date(`${day}T12:00:00Z`), tz);
+  const p = partsInTz(guess, tz);
+  const off = Math.round(
+    (Date.parse(`${day}T00:00:00Z`) - Date.UTC(p.year, p.month - 1, p.day)) / 86_400_000
+  );
+  return off === 0 ? guess : startOfDayNDays(guess, tz, off);
+}
+
+/**
+ * Window for a custom range: local midnight of the first day up to local
+ * midnight after the last, clamped to `now` so a range running into today
+ * stops at the present. Bucket size follows the length: hours for up to two
+ * days, days up to about six months, weeks beyond (like '1y').
+ */
+function resolveCustomRange(
+  custom: { from: string; to: string },
+  now: Date,
+  tz: string
+): PeriodRange {
+  const from = midnightOfDay(custom.from, tz);
+  const end = startOfDayNDays(midnightOfDay(custom.to, tz), tz, 1);
+  const to = new Date(Math.max(from.getTime(), Math.min(end.getTime(), now.getTime())));
+  const days = Math.round((Date.parse(custom.to) - Date.parse(custom.from)) / 86_400_000) + 1;
+  const granularity: PeriodRange['granularity'] = days <= 2 ? 'hour' : days <= 186 ? 'day' : 'week';
+  // Closed window ending on a midnight: keep the next day's first bucket out.
+  const bucketsTo = new Date(to.getTime() - 1);
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    granularity,
+    buckets:
+      granularity === 'week' || to <= from ? [] : generateBuckets(from, bucketsTo, granularity, tz),
+    tz,
+    days,
+  };
+}
+
+export function resolvePeriod(period: PeriodParam, now: Date, tz: string): PeriodRange {
+  if (!isPreset(period)) {
+    const custom = parseCustomPeriod(period);
+    if (custom) return resolveCustomRange(custom, now, tz);
+    period = 'today';
+  }
   let to = now;
   let from: Date;
   let granularity: PeriodRange['granularity'];
@@ -489,12 +550,52 @@ const FILTER_COLUMNS: Record<LiveDimension, string> = {
   utm_campaign: 'utm_campaign',
 };
 
+/**
+ * Property filter as SQL. With a `scope` it selects visits: a row is kept
+ * when it carries every filtered property, or when it lacks those keys and
+ * its session has a row that carries them all. So a filter on a custom
+ * event's property still counts that visit's pageviews and visitors, and a
+ * filter on a pageview property still counts the visit's goals and engaged
+ * time, while a row tagged with a different value (another tenant's page in
+ * the same visit) stays out. Without a scope (callers that already group by
+ * session), the row must carry the properties itself.
+ */
+function propsFilterSql(
+  pairs: [string, string][],
+  scope?: { siteKey: string; range: { from: string; to: string } }
+): string {
+  const carriesAll = pairs.map(([k, v]) => propMatchSql(k, v)).join(' AND ');
+  if (!scope) return ` AND ${carriesAll}`;
+  const noOtherValue = pairs
+    .map(
+      ([k, v]) =>
+        `(${propMatchSql(k, v)} OR event_meta NOT LIKE '${esc(propKeyLikePattern(k))}' ESCAPE '\\')`
+    )
+    .join(' AND ');
+  const sessions =
+    `SELECT session_id FROM ${EVENTS_TABLE}` +
+    ` WHERE site_id = '${esc(scope.siteKey)}'` +
+    ` AND ts >= TIMESTAMP '${esc(scope.range.from)}'` +
+    ` AND ts < TIMESTAMP '${esc(scope.range.to)}'` +
+    ingestBounds(scope.range.from, scope.range.to) +
+    ` AND session_id != '' AND ${carriesAll}`;
+  return ` AND ${noOtherValue} AND (${carriesAll} OR session_id IN (${sessions}))`;
+}
+
 /** Exact-match dashboard filters as additional AND clauses ('' if none).
  *  The page filter alone also understands the '/section/*' prefix syntax. */
-function filterClause(filters?: LiveFilters): string {
+function filterClause(
+  filters?: LiveFilters,
+  scope?: { siteKey: string; range: { from: string; to: string } }
+): string {
   if (!filters) return '';
   let sql = '';
   for (const [key, value] of Object.entries(filters)) {
+    if (key === 'props' && typeof value === 'string') {
+      const pairs = parsePropsFilter(value);
+      if (pairs) sql += propsFilterSql(pairs, scope);
+      continue;
+    }
     const col = FILTER_COLUMNS[key as LiveDimension];
     if (!col || typeof value !== 'string') continue;
     if (col === 'pathname' && isPagePrefix(value)) {
@@ -520,7 +621,7 @@ function whereSiteAndRange(
     ` AND ts >= TIMESTAMP '${esc(range.from)}'` +
     ` AND ts < TIMESTAMP '${esc(range.to)}'` +
     ingestBounds(range.from, range.to) +
-    filterClause(filters)
+    filterClause(filters, { siteKey, range })
   );
 }
 
@@ -787,7 +888,7 @@ export function buildFunnelQuery(
         AND ts >= TIMESTAMP '${esc(range.from)}'
         AND ts < TIMESTAMP '${esc(range.to)}'${ingestBounds(range.from, range.to)}
         AND session_id != ''
-        AND (${conds.join(' OR ')})${filterClause(filters)}
+        AND (${conds.join(' OR ')})${filterClause(filters, { siteKey, range })}
       GROUP BY session_id
     )
     SELECT
