@@ -1,4 +1,4 @@
-import { NAMED_BOTS } from '@traks/shared';
+import { NAMED_BOTS, verifiedBotName } from '@traks/shared';
 
 // Bot traffic is counted, not dropped: ingest stores matching pageviews as
 // event_type 'bot_pageview' with the display name below in `browser`, so
@@ -60,6 +60,18 @@ const DATACENTER_ASNS = new Map<number, string>([
   [398781, 'steel-axis'],
 ]);
 
+const DATACENTER_PREFIX = 'Datacenter (';
+
+/**
+ * Whether a bot name came from the datacenter-network rule alone. That is the
+ * one signal that can catch a person (a cloud desktop, a self-hosted VPN), so
+ * ingest keeps these sources' custom events as 'bot_event' rows instead of
+ * dropping them: no panel reads that type, but the goals are not lost.
+ */
+export function isDatacenterBot(name: string): boolean {
+  return name.startsWith(DATACENTER_PREFIX);
+}
+
 /** The subset of request.cf the classifier reads. */
 export interface RequestSignals {
   asn?: number;
@@ -72,9 +84,9 @@ export interface RequestSignals {
  * reporting navigator.webdriver, or a request from a hosting network.
  */
 export function signalBotName(cf: RequestSignals, webdriver: boolean): string | null {
-  if (cf.verifiedBotCategory) return `Verified bot (${cf.verifiedBotCategory})`.slice(0, 64);
+  if (cf.verifiedBotCategory) return verifiedBotName(cf.verifiedBotCategory);
   if (webdriver) return 'Automated Browser';
   const network = cf.asn ? DATACENTER_ASNS.get(cf.asn) : undefined;
-  if (network) return `Datacenter (${network})`;
+  if (network) return `${DATACENTER_PREFIX}${network})`;
   return null;
 }

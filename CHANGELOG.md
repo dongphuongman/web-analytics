@@ -12,7 +12,7 @@ ships separately and is not listed here.
 
 ### Changed
 
-- Scrapers that run a real browser no longer count as visitors. Pageviews from cloud and hosting networks (AWS, Google Cloud, OVH, Hetzner, DigitalOcean and similar), from browsers that report being automated (Puppeteer, Playwright, Selenium), and from Cloudflare-verified crawlers using a browser user agent are now counted in the Bots panel, named "Datacenter (network)" (e.g. "Datacenter (AWS)"), "Automated Browser" or "Verified bot (category)". Sites crawled this way will see visitor counts drop toward what other analytics tools report. People on consumer VPNs are still counted.
+- Scrapers that run a real browser no longer count as visitors. Pageviews from cloud and hosting networks (AWS, Google Cloud, OVH, Hetzner, DigitalOcean and similar), from browsers that report being automated (Puppeteer, Playwright, Selenium), and from Cloudflare-verified crawlers using a browser user agent are now counted in the Bots panel, named "Datacenter (network)" (e.g. "Datacenter (AWS)"), "Automated Browser" or "Verified bot (category)"; verified crawlers appear under the matching Bots tab (Search, AI or Social). Custom events from cloud networks are kept aside rather than discarded: they don't count toward goals, but they aren't lost. Sites crawled this way will see visitor counts drop toward what other analytics tools report. People on consumer VPNs are still counted.
 
 ## 0.1.44 - 2026-10-16
 

@@ -8,7 +8,7 @@ import {
   type ValidatedTrackingEvent,
 } from '@traks/shared';
 import { parsePlausible, deriveSessionId } from './lib/plausible';
-import { botName, signalBotName, type RequestSignals } from './lib/bots';
+import { botName, isDatacenterBot, signalBotName, type RequestSignals } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
 import { TRACKER_SCRIPT } from './lib/tracker-script';
@@ -321,7 +321,9 @@ app.post('/api/event', async c => {
   // crawler's "time on page" or letting it fire conversion events would only
   // corrupt the panels that do look at those types. The one exception is the
   // reserved WebMCP tool-call event: headless/agentic browsers are exactly
-  // who invokes a page's WebMCP tools, so their calls must be recorded.
+  // who invokes a page's WebMCP tools, so their calls must be recorded. A
+  // datacenter-network match is the one guess that can be a person, so its
+  // custom events are kept as 'bot_event' (read by no panel) rather than lost.
   const ua = (c.req.header('user-agent') || '').slice(0, 512);
   // A human-looking UA can still be a bot: Cloudflare's network and
   // verified-bot data, plus the tracker's webdriver flag, catch scrapers
@@ -333,7 +335,8 @@ app.post('/api/event', async c => {
       event.wd === 1
     );
   const isWebmcpCall = event.t === 'event' && event.en === AUTO_EVENTS.WEBMCP;
-  if (bot && event.t !== 'pageview' && !isWebmcpCall) return c.json({ ok: true });
+  const isBotEvent = !!bot && event.t === 'event' && !isWebmcpCall && isDatacenterBot(bot);
+  if (bot && event.t !== 'pageview' && !isWebmcpCall && !isBotEvent) return c.json({ ok: true });
 
   // Burst guard first (per colo, per site key): unknown keys must be cut here
   // too, otherwise a flood of random keys becomes an unmetered D1 amplifier.
@@ -388,9 +391,11 @@ app.post('/api/event', async c => {
       const parsed = parseUA(ua);
       const browser = bot ?? parsed.browser;
       const { os, deviceType } = parsed;
-      // Only pageviews are retyped for bots; a bot's WebMCP tool call stays a
-      // regular 'event' row (its agent name still lands in `browser` above).
-      const eventType = bot && event.t === 'pageview' ? 'bot_pageview' : event.t;
+      // Bot pageviews and kept datacenter events are retyped; a bot's WebMCP
+      // tool call stays a regular 'event' row (its agent name still lands in
+      // `browser` above).
+      const eventType =
+        bot && event.t === 'pageview' ? 'bot_pageview' : isBotEvent ? 'bot_event' : event.t;
 
       // Bucket keys are computed in the site's timezone so "today" hourly
       // buckets align with IST (or whatever the site runs on) rather than UTC.

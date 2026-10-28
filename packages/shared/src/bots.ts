@@ -57,7 +57,33 @@ export const NAMED_BOTS: { pattern: RegExp; name: string; category: BotCategory 
   { pattern: /scrapy/i, name: 'Scrapy', category: 'monitoring' },
 ];
 
-const CATEGORY_BY_NAME = new Map(NAMED_BOTS.map(b => [b.name, b.category]));
+// Cloudflare's verified-bot categories (request.cf.verifiedBotCategory),
+// for crawlers the collector catches by network rather than UA. The list is
+// fixed, so each stored name can be listed up front like a named bot. A
+// category Cloudflare adds later lands in 'other' until it is listed here.
+const VERIFIED_BOT_CATEGORIES: Record<string, BotCategory> = {
+  'Search Engine Crawler': 'search',
+  'AI Crawler': 'ai',
+  'AI Assistant': 'ai',
+  'AI Search': 'ai',
+  'Page Preview': 'social',
+  'Search Engine Optimization': 'seo',
+  'Monitoring & Analytics': 'monitoring',
+};
+
+/** Stored name of a Cloudflare-verified crawler that sent a browser UA. */
+export function verifiedBotName(category: string): string {
+  return `Verified bot (${category})`.slice(0, 64);
+}
+
+const CATEGORY_BY_NAME = new Map<string, BotCategory>([
+  ...NAMED_BOTS.map(b => [b.name, b.category] as const),
+  ...Object.entries(VERIFIED_BOT_CATEGORIES).map(([c, cat]) => [verifiedBotName(c), cat] as const),
+]);
+
+function namesIn(categories: BotCategory[]): string[] {
+  return [...CATEGORY_BY_NAME].filter(([, c]) => categories.includes(c)).map(([name]) => name);
+}
 
 /** Category of a stored bot display name. Names the collector derived from
  *  an unknown user agent ("SomeNewBot", "Unknown Bot") are 'other'. */
@@ -74,11 +100,6 @@ export type BotGroup = (typeof BOT_GROUPS)[number];
  *  search, AI and social bots, including names the collector made up. */
 export function botGroupNames(group: BotGroup): { names: string[]; exclude: boolean } {
   return group === 'other'
-    ? {
-        names: NAMED_BOTS.filter(b => ['search', 'ai', 'social'].includes(b.category)).map(
-          b => b.name
-        ),
-        exclude: true,
-      }
-    : { names: NAMED_BOTS.filter(b => b.category === group).map(b => b.name), exclude: false };
+    ? { names: namesIn(['search', 'ai', 'social']), exclude: true }
+    : { names: namesIn([group]), exclude: false };
 }
