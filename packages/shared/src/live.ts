@@ -293,6 +293,14 @@ export interface LivePathRow {
   sessions: number;
 }
 
+/** How visits to a page split: all of them, those that started on it (no
+ *  page before) and those that ended on it (no page after). */
+export interface LivePathTotals {
+  visits: number;
+  entered: number;
+  exited: number;
+}
+
 /** Conversions-by-source row: tagged sessions and how many of them
  *  completed a goal. */
 export interface LiveAttributionRow {
@@ -436,6 +444,13 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LivePathRow[]>;
+  /** Visits to a page or section, and how many started or ended on it. */
+  pathTotals(
+    target: string,
+    fromMs: number,
+    toMs: number,
+    filters?: LiveFilters
+  ): Promise<LivePathTotals>;
   /** Visitors bucketed by screen width (Mobile/Tablet/Laptop/Desktop). */
   screenSizes(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveScreenSizeRow[]>;
   /** Distinct event_meta groups for one custom event (props parsed by the API). */

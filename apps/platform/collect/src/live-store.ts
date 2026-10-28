@@ -21,6 +21,7 @@ import type {
   LiveLinkRow,
   LiveEntryPageRow,
   LivePathRow,
+  LivePathTotals,
   LiveAttributionRow,
   LiveScreenSizeRow,
   LiveMetaRow,
@@ -1455,6 +1456,53 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray()
           .map(r => ({ name: String(r.name), sessions: n(r.sessions) }))
+    );
+  }
+
+  /** Same semantics as buildPathTotalsQuery: visits to `target`, and how many
+   *  started (no page before) or ended (no page after) on it. */
+  async pathTotals(
+    target: string,
+    fromMs: number,
+    toMs: number,
+    filters?: LiveFilters
+  ): Promise<LivePathTotals> {
+    const f = SiteLiveStore.filterSql(filters);
+    const keep = filters
+      ? `MAX(CASE WHEN 1 = 1${f.sql} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+      : '1';
+    const prefix = isPagePrefix(target) ? target.slice(0, -2) : null;
+    const match =
+      prefix === null ? 'pathname = ?' : `(pathname = ? OR pathname LIKE ? ESCAPE '\\')`;
+    const matchParams = prefix === null ? [target] : [prefix, `${escapeLike(prefix)}/%`];
+    return this.memoized(
+      `pathTotals:${SiteLiveStore.esc(target)}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () => {
+        const [r] = this.sql
+          .exec(
+            `WITH steps AS (
+               SELECT session_id, pathname,
+                      LEAD(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS next_path,
+                      LAG(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS prev_path,
+                      ${keep} AS keep
+               FROM events
+               WHERE event_type = 'pageview' AND session_id != ''
+                 AND ts >= ? AND ts < ?
+             )
+             SELECT COUNT(DISTINCT session_id) AS visits,
+                    COUNT(DISTINCT CASE WHEN prev_path IS NULL THEN session_id END) AS entered,
+                    COUNT(DISTINCT CASE WHEN next_path IS NULL THEN session_id END) AS exited
+             FROM steps
+             WHERE keep = 1 AND ${match}`,
+            ...f.params,
+            fromMs,
+            toMs,
+            ...matchParams
+          )
+          .toArray();
+        return { visits: n(r?.visits), entered: n(r?.entered), exited: n(r?.exited) };
+      }
     );
   }
 }

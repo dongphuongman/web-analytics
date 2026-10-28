@@ -1039,6 +1039,44 @@ export function buildPathNeighborsQuery(
   `;
 }
 
+/**
+ * Totals beside the page-flow neighbours: visits that viewed `target`, and
+ * how many of them started on it (no page before) or ended on it (no page
+ * after). Same window and session-level filters as buildPathNeighborsQuery,
+ * so the numbers line up with its rows. Identical for both directions, so
+ * the 'prev' and 'next' calls share one cached scan.
+ */
+export function buildPathTotalsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  target: string,
+  filters?: LiveFilters
+) {
+  const keep = filters
+    ? `MAX(CASE WHEN 1 = 1${filterClause(filters)} THEN 1 ELSE 0 END) OVER (PARTITION BY session_id)`
+    : '1';
+  return (table: string) => `
+    WITH steps AS (
+      SELECT
+        session_id,
+        pathname,
+        LEAD(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS next_path,
+        LAG(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS prev_path,
+        ${keep} AS keep
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, 'pageview')}
+        AND session_id != ''
+    )
+    SELECT
+      approx_distinct(session_id) AS visits,
+      approx_distinct(CASE WHEN prev_path IS NULL THEN session_id END) AS entered,
+      approx_distinct(CASE WHEN next_path IS NULL THEN session_id END) AS exited
+    FROM steps
+    WHERE keep = 1
+      AND ${pathMatchSql('pathname', target)}
+  `;
+}
+
 /** Goals one conversions-by-source query will match (bounds the SQL). */
 export const MAX_ATTRIBUTION_GOALS = 50;
 

@@ -14,6 +14,7 @@ export {
   buildTopPagesQuery,
   buildEntryExitPagesQuery,
   buildPathNeighborsQuery,
+  buildPathTotalsQuery,
   buildAttributionQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,

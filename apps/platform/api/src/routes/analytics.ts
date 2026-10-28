@@ -40,6 +40,7 @@ import {
   buildTopPagesQuery,
   buildEntryExitPagesQuery,
   buildPathNeighborsQuery,
+  buildPathTotalsQuery,
   buildAttributionQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
@@ -1397,18 +1398,17 @@ export const analyticsRoute = appWithBatch
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
+    // `totals` (visits to the page, and how many started or ended there)
+    // rides along with the neighbours; it is the same for both directions.
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.siteId).pathNeighbors(
-          kind,
-          path,
-          ms(range.from),
-          ms(range.to),
-          10,
-          filters
-        );
-        return c.json({ data: rows });
+        const live = liveStore(c, site.siteId);
+        const [rows, totals] = await Promise.all([
+          live.pathNeighbors(kind, path, ms(range.from), ms(range.to), 10, filters),
+          live.pathTotals(path, ms(range.from), ms(range.to), filters),
+        ]);
+        return c.json({ data: rows, totals });
       } catch (err) {
         logLiveFallback(err);
       }
@@ -1418,16 +1418,29 @@ export const analyticsRoute = appWithBatch
     const ttl = freshTtlSeconds(period, range);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ name: string; sessions: unknown }>(
-        c,
-        ttl,
-        buildPathNeighborsQuery(site.siteId, range, kind, path, filters)
-      )
+      Promise.all([
+        cachedR2Sql<{ name: string; sessions: unknown }>(
+          c,
+          ttl,
+          buildPathNeighborsQuery(site.siteId, range, kind, path, filters)
+        ),
+        cachedR2Sql<{ visits: unknown; entered: unknown; exited: unknown }>(
+          c,
+          ttl,
+          buildPathTotalsQuery(site.siteId, range, path, filters)
+        ),
+      ])
     );
     if (outcome instanceof Response) return outcome;
+    const [rows, [t]] = outcome;
 
     return c.json({
-      data: outcome.map(r => ({ name: r.name, sessions: toNumber(r.sessions) })),
+      data: rows.map(r => ({ name: r.name, sessions: toNumber(r.sessions) })),
+      totals: {
+        visits: toNumber(t?.visits),
+        entered: toNumber(t?.entered),
+        exited: toNumber(t?.exited),
+      },
     });
   })
 

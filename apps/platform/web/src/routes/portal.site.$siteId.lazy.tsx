@@ -66,7 +66,7 @@ import { GoalsDrawer } from '@/components/analytics/GoalsDrawer';
 import { FunnelFormModal } from '@/components/analytics/FunnelFormModal';
 import { FunnelsDrawer } from '@/components/analytics/FunnelsDrawer';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
-import { PageFlowPanel, type PathRow } from '@/components/analytics/PageFlowPanel';
+import { PageFlowPanel, type PathRow, type PathTotals } from '@/components/analytics/PageFlowPanel';
 import {
   ConversionsPanel,
   type AttributionDim,
@@ -2007,27 +2007,6 @@ export function SiteDashboard({
                 />
               </div>
 
-              {/* Page flow: the pages right before and after one page. Not
-                part of a share page. */}
-              {!shared && (
-                <PageFlowPanel
-                  page={flowTarget}
-                  pages={flowPageNames}
-                  pageVisitors={flowPageRows.find(r => r.name === flowTarget)?.visitors}
-                  onSelect={setFlowPage}
-                  prev={{
-                    rows: (flowPrevQ.data as any)?.data as PathRow[] | undefined,
-                    isLoading: flowPrevQ.isLoading,
-                    isError: flowPrevQ.isError,
-                  }}
-                  next={{
-                    rows: (flowNextQ.data as any)?.data as PathRow[] | undefined,
-                    isLoading: flowNextQ.isLoading,
-                    isError: flowNextQ.isError,
-                  }}
-                />
-              )}
-
               {/* Custom events beside auto-tracked links: events are
                 business actions with a props drill-down; outbound/downloads
                 share one card as tabs since they're the same shape (URL +
@@ -2145,6 +2124,31 @@ export function SiteDashboard({
                     />
                   </div>
                 </>
+              )}
+
+              {/* Page flow: the pages right before and after one page. Not
+                part of a share page. */}
+              {!shared && (
+                <PageFlowPanel
+                  page={flowTarget}
+                  pages={flowPageNames}
+                  totals={
+                    ((flowPrevQ.data as any)?.totals ?? (flowNextQ.data as any)?.totals) as
+                      | PathTotals
+                      | undefined
+                  }
+                  onSelect={setFlowPage}
+                  prev={{
+                    rows: (flowPrevQ.data as any)?.data as PathRow[] | undefined,
+                    isLoading: flowPrevQ.isLoading,
+                    isError: flowPrevQ.isError,
+                  }}
+                  next={{
+                    rows: (flowNextQ.data as any)?.data as PathRow[] | undefined,
+                    isLoading: flowNextQ.isLoading,
+                    isError: flowNextQ.isError,
+                  }}
+                />
               )}
 
               {/* Goals, then funnels, close out the page (on a share page, only
