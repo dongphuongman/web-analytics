@@ -1,4 +1,14 @@
-import { useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { motion } from 'framer-motion';
 import { Check, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
@@ -6,27 +16,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Sticker } from '@/components/ui/sticker';
-import {
-  CUSTOM_PERIOD_MIN_DATE,
-  customPeriod,
-  isPreset,
-  parseCustomPeriod,
-  type Period,
-  type PeriodParam,
-} from '@traks/shared';
+import { dayDate, formatDay, rangeLabel } from '@/lib/days';
+import { DateRangePanel } from './DateRangePanel';
+import { isPreset, parseCustomPeriod, type Period, type PeriodParam } from '@traks/shared';
 
 interface PeriodPickerProps {
   value: PeriodParam;
@@ -70,32 +65,11 @@ export const PERIOD_NAMES: Record<Period, string> = {
   all: 'All time',
 };
 
-/** A YYYY-MM-DD day as a local Date (no timezone shift). */
-function dayDate(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function formatDay(day: string, withYear: boolean): string {
-  return dayDate(day).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    ...(withYear ? { year: 'numeric' } : {}),
-  });
-}
-
-/** "3 Mar – 15 Mar 2026"; the year shows once unless the range spans two. */
-function customLabel(from: string, to: string): string {
-  if (from === to) return formatDay(from, true);
-  const sameYear = from.slice(0, 4) === to.slice(0, 4);
-  return `${formatDay(from, !sameYear)} – ${formatDay(to, true)}`;
-}
-
 /** Display name for any period: the preset's name, or the custom range's days. */
 export function periodLabel(period: PeriodParam): string {
   if (isPreset(period)) return PERIOD_NAMES[period];
   const custom = parseCustomPeriod(period);
-  return custom ? customLabel(custom.from, custom.to) : PERIOD_NAMES.today;
+  return custom ? rangeLabel(custom.from, custom.to) : PERIOD_NAMES.today;
 }
 
 /** Pill-sized custom label without the year: "3–15 Mar" within a month,
@@ -111,108 +85,43 @@ function compactLabel(period: PeriodParam): string {
   return `${formatDay(custom.from, false)} – ${formatDay(custom.to, false)}`;
 }
 
-/** Today in the viewer's calendar, YYYY-MM-DD. */
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function shiftDay(day: string, n: number): string {
-  const d = dayDate(day);
-  d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/**
- * From/to day picker. Native date inputs: no calendar dependency, and phones
- * get their own picker. Days are in the site's timezone on the server.
- */
-function CustomRangeDialog({
-  open,
-  onOpenChange,
-  value,
-  onApply,
+/** The range panel as a popover under the switch; closes on Escape or a
+ *  press outside `anchor` (the switch and the popover). */
+function RangePopover({
+  anchor,
+  onClose,
+  children,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  value: PeriodParam;
-  onApply: (period: PeriodParam) => void;
+  anchor: RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+  children: ReactNode;
 }): ReactElement {
-  const today = localToday();
-  const current = parseCustomPeriod(value);
-  const [from, setFrom] = useState(current?.from ?? shiftDay(today, -6));
-  const [to, setTo] = useState(current?.to ?? today);
-  const error =
-    !from || !to
-      ? 'Pick both days.'
-      : from > to
-        ? 'The start day must be on or before the end day.'
-        : from < CUSTOM_PERIOD_MIN_DATE
-          ? 'Ranges start in 2000 or later.'
-          : null;
-
-  const apply = (): void => {
-    if (error) return;
-    onApply(customPeriod(from, to));
-    onOpenChange(false);
-  };
+  useEffect(() => {
+    const press = (e: MouseEvent): void => {
+      if (anchor.current && !anchor.current.contains(e.target as Node)) onClose();
+    };
+    const escape = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', press);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', press);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [anchor, onClose]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)} className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Custom range</DialogTitle>
-          <DialogDescription>
-            Both days are included, in the site&apos;s timezone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <form
-            className="grid grid-cols-2 gap-3"
-            onSubmit={e => {
-              e.preventDefault();
-              apply();
-            }}
-          >
-            <label className="block">
-              <span className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">From</span>
-              <Input
-                type="date"
-                value={from}
-                min={CUSTOM_PERIOD_MIN_DATE}
-                max={to || today}
-                onChange={e => setFrom(e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">To</span>
-              <Input
-                type="date"
-                value={to}
-                min={from || CUSTOM_PERIOD_MIN_DATE}
-                max={today}
-                onChange={e => setTo(e.target.value)}
-              />
-            </label>
-            {error && <p className="col-span-2 text-[12.5px] text-[#e07a5f]">{error}</p>}
-            {/* Enter in either field applies. */}
-            <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
-          </form>
-        </DialogBody>
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            className="rounded-xl text-[13px]"
-          >
-            Cancel
-          </Button>
-          <Button onClick={apply} disabled={!!error} className="rounded-xl text-[13px]">
-            Apply
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <motion.div
+      role="dialog"
+      aria-label="Custom range"
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.12 }}
+      className="absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-[20px] bg-white shadow-float"
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -220,20 +129,28 @@ function CustomRangeDialog({
  * Floating pill segmented control; the active segment fills with ink. Below
  * md the eight segments don't fit beside the site toolbar, so the same pill
  * becomes a single button that opens a menu below it. The last segment opens
- * the custom-range dialog and, while one is active, shows its days.
+ * the range calendar (a popover here, a dialog from the phone menu); it
+ * stays the same size while a range is active, so the switch never shifts
+ * (the dashboard shows the range's days beside the chart).
  */
 export function PeriodPicker({
   value,
   onChange,
   allowCustom = true,
 }: PeriodPickerProps): ReactElement {
-  const [customOpen, setCustomOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState<false | 'popover' | 'dialog'>(false);
+  const closeCustom = useCallback(() => setCustomOpen(false), []);
+  const applyCustom = (period: PeriodParam): void => {
+    onChange(period);
+    setCustomOpen(false);
+  };
+  const switchRef = useRef<HTMLDivElement>(null);
   const isCustom = !isPreset(value);
   const shortLabel = isPreset(value) ? PERIOD_SHORT[value] : compactLabel(value);
 
   // Desktop switch: the ink thumb slides under the selected segment. It is
   // measured from the segment itself, so labels of any width line up, and
-  // re-measured when the track resizes (fonts loading, custom label).
+  // re-measured when the track resizes (fonts loading).
   const trackRef = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
   useLayoutEffect(() => {
@@ -247,19 +164,22 @@ export function PeriodPicker({
     const ro = new ResizeObserver(place);
     ro.observe(track);
     return () => ro.disconnect();
-  }, [value, allowCustom, shortLabel]);
+  }, [value, allowCustom]);
 
   return (
     <>
-      {/* Mounted only while open, so each opening starts from the current value. */}
-      {customOpen && (
-        <CustomRangeDialog
-          open={customOpen}
-          onOpenChange={setCustomOpen}
-          value={value}
-          onApply={onChange}
-        />
-      )}
+      {/* Panels mount only while open, so each opening starts from the
+          current value. */}
+      <Dialog open={customOpen === 'dialog'} onOpenChange={open => !open && closeCustom()}>
+        <DialogContent onClose={closeCustom} className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Custom range</DialogTitle>
+          </DialogHeader>
+          <div className="px-5 pb-5 pt-2">
+            <DateRangePanel value={value} onApply={applyCustom} onCancel={closeCustom} stacked />
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="md:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -291,7 +211,7 @@ export function PeriodPicker({
             ))}
             {allowCustom && (
               <DropdownMenuItem
-                onClick={() => setCustomOpen(true)}
+                onClick={() => setCustomOpen('dialog')}
                 className={cn(
                   'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-[#3D3B4F]',
                   isCustom && 'bg-[#F2F1ED] font-semibold'
@@ -304,46 +224,50 @@ export function PeriodPicker({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div
-        ref={trackRef}
-        className="relative hidden rounded-full bg-[#F2F1ED] p-[3px] md:inline-flex"
-      >
-        {thumb && (
-          <span
-            aria-hidden
-            className="absolute bottom-[3px] top-[3px] rounded-full bg-[#3D3B4F] transition-[left,width] duration-300 ease-[cubic-bezier(.3,.7,.2,1)] motion-reduce:transition-none"
-            style={{ left: thumb.left, width: thumb.width }}
-          />
-        )}
-        {PERIOD_OPTIONS.map(option => (
-          <button
-            key={option.value}
-            data-on={value === option.value}
-            onClick={() => onChange(option.value)}
-            className={cn(
-              'relative z-[1] rounded-full px-[11px] py-1.5 text-[12.5px] transition-colors cursor-pointer',
-              value === option.value
-                ? 'font-semibold text-white'
-                : 'font-medium text-[#6E6C7C] hover:text-[#3D3B4F]'
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-        {allowCustom && (
-          <button
-            data-on={isCustom}
-            onClick={() => setCustomOpen(true)}
-            aria-label="Custom range"
-            title="Custom range"
-            className={cn(
-              'relative z-[1] flex items-center gap-1.5 rounded-full px-2 py-1 text-[12.5px] transition-colors cursor-pointer',
-              isCustom ? 'pr-3 font-semibold text-white' : 'font-medium text-[#6E6C7C]'
-            )}
-          >
-            <Sticker name="calendar" className={cn('h-5 w-5', isCustom && 'text-white')} />
-            {isCustom && <span className="whitespace-nowrap">{shortLabel}</span>}
-          </button>
+      <div ref={switchRef} className="relative hidden md:block">
+        <div ref={trackRef} className="relative inline-flex rounded-full bg-[#F2F1ED] p-[3px]">
+          {thumb && (
+            <span
+              aria-hidden
+              className="absolute bottom-[3px] top-[3px] rounded-full bg-[#3D3B4F] transition-[left,width] duration-300 ease-[cubic-bezier(.3,.7,.2,1)] motion-reduce:transition-none"
+              style={{ left: thumb.left, width: thumb.width }}
+            />
+          )}
+          {PERIOD_OPTIONS.map(option => (
+            <button
+              key={option.value}
+              data-on={value === option.value}
+              onClick={() => {
+                onChange(option.value);
+                closeCustom();
+              }}
+              className={cn(
+                'relative z-[1] rounded-full px-[11px] py-1.5 text-[12.5px] transition-colors cursor-pointer',
+                value === option.value
+                  ? 'font-semibold text-white'
+                  : 'font-medium text-[#6E6C7C] hover:text-[#3D3B4F]'
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+          {allowCustom && (
+            <button
+              data-on={isCustom}
+              onClick={() => setCustomOpen(open => (open === 'popover' ? false : 'popover'))}
+              aria-expanded={customOpen === 'popover'}
+              aria-label={isCustom ? `Custom range: ${periodLabel(value)}` : 'Custom range'}
+              title={isCustom ? periodLabel(value) : 'Custom range'}
+              className="relative z-[1] flex items-center rounded-full px-2 py-1 transition-colors cursor-pointer"
+            >
+              <Sticker name="calendar" className={cn('h-5 w-5', isCustom && 'text-white')} />
+            </button>
+          )}
+        </div>
+        {customOpen === 'popover' && (
+          <RangePopover anchor={switchRef} onClose={closeCustom}>
+            <DateRangePanel value={value} onApply={applyCustom} onCancel={closeCustom} />
+          </RangePopover>
         )}
       </div>
     </>

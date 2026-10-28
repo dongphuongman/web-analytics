@@ -6,6 +6,12 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Changed
+
+- Custom ranges are picked on a calendar instead of two browser date fields. It opens under the period switch with quick ranges beside it (this or last month, this or last quarter, year to date, last year). From and To above the calendar show the two days; click From or To, then a day, to set that end. The selected end stays selected, and days that would put the range backwards are greyed out. Click the month title to jump by month, then by year, to any day since 2000. The calendar button keeps its size while a range is active, so the switch no longer shifts; the range's days show above the chart and in the button's tooltip. On phones the same calendar opens from the period menu.
+- The line under the site dashboard header is gone.
+- Each account can now add up to 10 sites (was 5). Accounts on the old limit move up when the instance updates; a limit you set by hand, including 0 for unlimited, is kept.
+
 ## 0.1.45 - 2026-10-28
 
 ### Added

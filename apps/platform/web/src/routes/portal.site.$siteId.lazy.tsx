@@ -1716,7 +1716,7 @@ export function SiteDashboard({
         {/* Pinned only with room to spare: on phones it stacks to two rows,
             and on a landscape phone it would cover half the screen, so in
             both cases it scrolls away. */}
-        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#E6E4DE] bg-[#F9F8F6] px-4 pb-4 pt-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
+        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-[#F9F8F6] px-4 pb-4 pt-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
           <div className="flex min-w-0 items-center gap-3">
             {!shared && (
               <Link
