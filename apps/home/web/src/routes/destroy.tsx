@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { EVENTS, track } from '@/lib/track';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ArrowRight, CheckCircle2, Trash2 } from 'lucide-react';
 import {
@@ -199,6 +200,7 @@ function DestroyWizard(): ReactElement {
         if (payload.type === 'step') {
           setSteps(prev => collapse([...prev, payload]));
         } else if (payload.type === 'done') {
+          track(EVENTS.DESTROY_SUCCESS);
           setRetainedBucket(payload.retainedBucket ?? null);
           setRetainedReason(payload.retainedReason ?? null);
           connect.setExistingInstalls(prev =>

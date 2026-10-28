@@ -33,7 +33,15 @@
     <meta name="twitter:image" content="https://traks.dev/og.png" />
 
     <!-- Traks running on Traks. The site key is public by design - it ships in
-         the page source of every tracked site. -->
+         the page source of every tracked site. The stub queues traks() calls
+         made before the tracker loads; it replays them in order. -->
+    <script>
+      window.traks =
+        window.traks ||
+        function () {
+          (window.traks.q = window.traks.q || []).push(arguments);
+        };
+    </script>
     <script
       defer
       data-site="pb_live_jb91nutshwufhn2hinetwtyd"

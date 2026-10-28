@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { EVENTS, track } from '@/lib/track';
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { EXAMPLE_API_URL, EXAMPLE_COLLECT_URL, GITHUB_URL, useLatestVersion } from '@/lib/config';
 import { ContactModal } from '@/contact/ContactModal';
@@ -355,12 +356,39 @@ function FilmModal({ onClose }: { onClose: () => void }): ReactElement {
 function LandingPage(): ReactElement {
   const latestVersion = useLatestVersion();
   const [contactOpen, setContactOpen] = useState(false);
-  const openContact = (): void => setContactOpen(true);
+  const openContact = (from: 'nav' | 'section' | 'footer'): void => {
+    setContactOpen(true);
+    track(EVENTS.CONTACT_OPEN, { from });
+  };
   const [filmOpen, setFilmOpen] = useState(false);
   const openFilm = (): void => {
     setFilmOpen(true);
-    (window as unknown as { traks?: (...a: unknown[]) => void }).traks?.('film_play');
+    track(EVENTS.FILM_PLAY);
   };
+
+  // How far down the page visitors get: one event per section, the first
+  // time at least a third of it is on screen.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const seen = new Set<string>();
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          const id = entry.target.id;
+          if (!entry.isIntersecting || seen.has(id)) continue;
+          seen.add(id);
+          observer.unobserve(entry.target);
+          track(EVENTS.SECTION_VIEW, { section: id });
+        }
+      },
+      { threshold: 0.33 }
+    );
+    for (const id of ['features', 'how', 'agents', 'cost', 'contact']) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
   return (
     <div className="min-h-screen bg-[#F6F5F2] text-[#3D3B4F]">
       {filmOpen && <FilmModal onClose={() => setFilmOpen(false)} />}
@@ -405,7 +433,7 @@ function LandingPage(): ReactElement {
               </a>
               <button
                 type="button"
-                onClick={openContact}
+                onClick={() => openContact('nav')}
                 className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
               >
                 Contact
@@ -422,6 +450,7 @@ function LandingPage(): ReactElement {
             </div>
             <a
               href="/deploy"
+              onClick={() => track(EVENTS.CTA_DEPLOY, { from: 'nav' })}
               className="ml-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-4 text-[12.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md"
             >
               Deploy now
@@ -479,6 +508,7 @@ function LandingPage(): ReactElement {
           >
             <a
               href="/deploy"
+              onClick={() => track(EVENTS.CTA_DEPLOY, { from: 'hero' })}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-[#3D3B4F] px-7 text-[14px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-lg"
             >
               Deploy to your Cloudflare
@@ -861,7 +891,7 @@ function LandingPage(): ReactElement {
               </div>
               <button
                 type="button"
-                onClick={openContact}
+                onClick={() => openContact('section')}
                 className="inline-flex h-11 items-center gap-2.5 rounded-full border border-[#E6E4DE] bg-white px-5 text-[13.5px] font-semibold text-[#3D3B4F] transition-colors hover:bg-[#F2F1ED]"
               >
                 <Mail className="h-4 w-4 text-[#9B9590]" strokeWidth={1.8} />
@@ -897,6 +927,7 @@ function LandingPage(): ReactElement {
             </p>
             <a
               href="/deploy"
+              onClick={() => track(EVENTS.CTA_DEPLOY, { from: 'cta' })}
               className="relative mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-mint px-8 text-[14px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(40,233,159,0.35)]"
             >
               Deploy Traks now
@@ -937,7 +968,7 @@ function LandingPage(): ReactElement {
             </a>
             <button
               type="button"
-              onClick={openContact}
+              onClick={() => openContact('footer')}
               className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
             >
               Contact

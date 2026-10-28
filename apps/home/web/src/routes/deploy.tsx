@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { EVENTS, failedStep, track } from '@/lib/track';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeft,
@@ -153,6 +154,7 @@ function DeployWizard(): ReactElement {
         void navigate({ to: '/update', search: { instance: sessionId }, replace: true });
         return;
       }
+      track(EVENTS.DEPLOY_RESUME);
       if (data.instanceName) setInstanceName(data.instanceName);
       if (data.steps) setSteps(collapse(data.steps));
       if (data.customDomain) {
@@ -184,6 +186,7 @@ function DeployWizard(): ReactElement {
     setBusy(true);
     try {
       const id = await createSession();
+      track(EVENTS.DEPLOY_START);
       void navigate({ to: '/deploy', search: { instance: id }, replace: true });
       setError('');
       setPhase('tokens');
@@ -231,6 +234,7 @@ function DeployWizard(): ReactElement {
     setBusy(true);
     try {
       if (catalogStatus === 'ok' || (await checkCatalog(connect.accountId))) {
+        track(EVENTS.DEPLOY_CONNECTED, { method: connect.oauthSignedIn ? 'oauth' : 'token' });
         setError('');
         setPhase('setup');
       }
@@ -286,6 +290,12 @@ function DeployWizard(): ReactElement {
       setPhase('tokens');
       return;
     }
+    track(EVENTS.DEPLOY_RUN, {
+      domain: zoneId ? 'custom' : 'workers.dev',
+      attempt: phase === 'failed' ? 'retry' : 'first',
+    });
+    // This run's steps, for the failure event (state is stale in here).
+    let runSteps: StepEvent[] = [];
     setSteps([]);
     setPhase('deploying');
     try {
@@ -322,8 +332,10 @@ function DeployWizard(): ReactElement {
         | { type: 'error'; message: string }
       >(res, payload => {
         if (payload.type === 'step') {
+          runSteps = [...runSteps, payload];
           setSteps(prev => collapse([...prev, payload]));
         } else if (payload.type === 'done') {
+          track(EVENTS.DEPLOY_SUCCESS);
           setResult({
             apiUrl: payload.apiUrl,
             collectUrl: payload.collectUrl,
@@ -331,11 +343,13 @@ function DeployWizard(): ReactElement {
           });
           setPhase('done');
         } else if (payload.type === 'error') {
+          track(EVENTS.DEPLOY_FAIL, { step: failedStep(runSteps) });
           setError(payload.message);
           setPhase('failed');
         }
       });
     } catch (err) {
+      track(EVENTS.DEPLOY_FAIL, { step: failedStep(runSteps) });
       setError(err instanceof Error ? err.message : 'deploy failed');
       setPhase('failed');
     } finally {

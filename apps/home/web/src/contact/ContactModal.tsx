@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { EVENTS, track } from '@/lib/track';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUpRight, Check, Copy, X } from 'lucide-react';
@@ -48,6 +49,7 @@ export function ContactModal({
     navigator.clipboard
       .writeText(CONTACT_EMAIL)
       .then(() => {
+        track(EVENTS.CONTACT_COPY);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })

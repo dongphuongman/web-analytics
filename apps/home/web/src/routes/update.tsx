@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { EVENTS, failedStep, track } from '@/lib/track';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ArrowRight, Check, CheckCircle2, ExternalLink, RotateCw } from 'lucide-react';
 import {
@@ -272,6 +273,9 @@ function UpdateWizard(): ReactElement {
 
   const provision = async (session: string, inst: ExistingInstall): Promise<void> => {
     const pastedToken = catalogToken.trim().length >= 20;
+    track(EVENTS.UPDATE_START);
+    // This run's steps, for the failure event (state is stale in here).
+    let runSteps: StepEvent[] = [];
     setSteps([]);
     setPhase('updating');
     try {
@@ -300,8 +304,10 @@ function UpdateWizard(): ReactElement {
         | { type: 'error'; message: string }
       >(res, payload => {
         if (payload.type === 'step') {
+          runSteps = [...runSteps, payload];
           setSteps(prev => collapse([...prev, payload]));
         } else if (payload.type === 'done') {
+          track(EVENTS.UPDATE_SUCCESS);
           setResult({
             apiUrl: payload.apiUrl,
             collectUrl: payload.collectUrl,
@@ -310,11 +316,13 @@ function UpdateWizard(): ReactElement {
           setVersions(v => ({ ...v, current: v.latest }));
           setPhase('done');
         } else if (payload.type === 'error') {
+          track(EVENTS.UPDATE_FAIL, { step: failedStep(runSteps) });
           setError(payload.message);
           setPhase('failed');
         }
       });
     } catch (err) {
+      track(EVENTS.UPDATE_FAIL, { step: failedStep(runSteps) });
       setError(err instanceof Error ? err.message : 'update failed');
       setPhase('failed');
     }
