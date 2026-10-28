@@ -91,7 +91,11 @@ function SitesPage(): ReactElement {
     [statsSiteIdsKey]
   );
 
-  const { data: batchStatsData, isLoading: batchStatsLoading } = useQuery({
+  const {
+    data: batchStatsData,
+    isLoading: batchStatsLoading,
+    isPlaceholderData,
+  } = useQuery({
     queryKey: ['stats', 'batch', 'today', statsSiteIdsKey],
     queryFn: () => api.getBatchStats('today', statsSiteIds),
     enabled: statsSiteIds.length > 0,
@@ -102,14 +106,18 @@ function SitesPage(): ReactElement {
   const batchStats = useMemo(() => (batchStatsData as any)?.data || {}, [batchStatsData]);
 
   // Busiest first; ties fall back to the name. Sites past the batch cap have
-  // no stats and sort last.
+  // no stats and sort last. While switching to this sort, the placeholder only
+  // holds the previous page's stats; sorting on those would reorder the grid
+  // twice, so the order holds until every fetched site has its numbers.
+  const statsReady =
+    !isPlaceholderData || statsPool.every((s: any) => batchStats[s.id] !== undefined);
   const sortedSites = useMemo(() => {
-    if (!sortsByStats) return orderedSites;
+    if (!sortsByStats || !statsReady) return orderedSites;
     return [...orderedSites].sort(
       (a: any, b: any) =>
         (batchStats[b.id]?.visitors ?? -1) - (batchStats[a.id]?.visitors ?? -1) || byName(a, b)
     );
-  }, [orderedSites, sortsByStats, batchStats]);
+  }, [orderedSites, sortsByStats, statsReady, batchStats]);
 
   // Paginate: show only `visibleCount` sites
   const visibleSites = sortedSites.slice(0, visibleCount);
