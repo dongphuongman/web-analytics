@@ -81,6 +81,7 @@ import {
   domainInputError,
   normalizeDomain,
   requiredTextError,
+  isPreset,
   propsFilterValue,
   MAX_PROP_FILTERS,
 } from '@traks/shared';
@@ -1009,7 +1010,10 @@ export function SiteDashboard({
   const { period: searchPeriod } = search;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const period: PeriodParam = searchPeriod || 'today';
+  // Share pages offer presets only (the public API refuses custom ranges), so
+  // a hand-edited share link with one falls back to today.
+  const period: PeriodParam =
+    shared && searchPeriod && !isPreset(searchPeriod) ? 'today' : searchPeriod || 'today';
 
   const filters: AnalyticsFilters = {};
   for (const key of Object.keys(FILTER_LABELS) as (keyof AnalyticsFilters)[]) {
@@ -1829,7 +1833,7 @@ export function SiteDashboard({
                 </IconTip>
               )}
             </div>
-            <PeriodPicker value={period} onChange={setPeriod} />
+            <PeriodPicker value={period} onChange={setPeriod} allowCustom={!shared} />
           </div>
         </div>
 

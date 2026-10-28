@@ -9,7 +9,7 @@ ships separately and is not listed here.
 ### Added
 
 - Sort your sites. The Sites page has a sort menu next to search: date added (the order so far), name, or visitors today, busiest first. Your choice is remembered in this browser.
-- Custom date ranges. The period picker has a calendar option for any span of whole days, both ends included and counted in the site's timezone, so you can report on a campaign or a billing month. Ranges are shareable links (`?period=2026-03-01..2026-03-15`), work on public share pages, and are accepted by the API and every MCP tool that takes a period. A range that runs into today trails live numbers by a few minutes.
+- Custom date ranges. The period picker has a calendar option for any span of whole days, both ends included and counted in the site's timezone, so you can report on a campaign or a billing month. Ranges are shareable links (`?period=2026-03-01..2026-03-15`) and are accepted by the API and every MCP tool that takes a period. Public share pages keep the preset periods. A range that runs into today trails live numbers by a few minutes.
 - Filter by custom property. Click a property in a custom event's breakdown to filter the dashboard to the visits that carried it: their pageviews, goals and visit duration all count, while a page tagged with a different value (another tenant in the same visit) stays out. Combine up to five. The API takes the same filter as `props={"spaceid":"organizer-123","eventid":"event-456"}`, and saved segments keep it.
 
 ### Changed

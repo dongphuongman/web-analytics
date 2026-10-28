@@ -30,6 +30,8 @@ import {
 interface PeriodPickerProps {
   value: PeriodParam;
   onChange: (period: PeriodParam) => void;
+  /** Offer the custom-range option (off on public share pages). */
+  allowCustom?: boolean;
 }
 
 const PERIOD_OPTIONS: { label: string; value: Period }[] = [
@@ -219,7 +221,11 @@ function CustomRangeDialog({
  * becomes a single button that opens a menu below it. The last segment opens
  * the custom-range dialog and, while one is active, shows its days.
  */
-export function PeriodPicker({ value, onChange }: PeriodPickerProps): ReactElement {
+export function PeriodPicker({
+  value,
+  onChange,
+  allowCustom = true,
+}: PeriodPickerProps): ReactElement {
   const [customOpen, setCustomOpen] = useState(false);
   const isCustom = !isPreset(value);
   const shortLabel = isPreset(value) ? PERIOD_SHORT[value] : compactLabel(value);
@@ -266,16 +272,18 @@ export function PeriodPicker({ value, onChange }: PeriodPickerProps): ReactEleme
                 {value === option.value && <Check className="h-4 w-4 text-[#3D3B4F]" />}
               </DropdownMenuItem>
             ))}
-            <DropdownMenuItem
-              onClick={() => setCustomOpen(true)}
-              className={cn(
-                'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-[#3D3B4F]',
-                isCustom && 'bg-[#F2F1ED] font-semibold'
-              )}
-            >
-              Custom range…
-              {isCustom && <Check className="h-4 w-4 text-[#3D3B4F]" />}
-            </DropdownMenuItem>
+            {allowCustom && (
+              <DropdownMenuItem
+                onClick={() => setCustomOpen(true)}
+                className={cn(
+                  'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-[#3D3B4F]',
+                  isCustom && 'bg-[#F2F1ED] font-semibold'
+                )}
+              >
+                Custom range…
+                {isCustom && <Check className="h-4 w-4 text-[#3D3B4F]" />}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -294,20 +302,22 @@ export function PeriodPicker({ value, onChange }: PeriodPickerProps): ReactEleme
             {option.label}
           </button>
         ))}
-        <button
-          onClick={() => setCustomOpen(true)}
-          aria-label="Custom range"
-          title="Custom range"
-          className={cn(
-            'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-all cursor-pointer',
-            isCustom
-              ? 'bg-[#3D3B4F] text-white font-semibold'
-              : 'text-[#9B9590] hover:text-[#6b6560]'
-          )}
-        >
-          <CalendarDays className="h-[13px] w-[13px]" strokeWidth={1.9} />
-          {isCustom && <span className="whitespace-nowrap">{shortLabel}</span>}
-        </button>
+        {allowCustom && (
+          <button
+            onClick={() => setCustomOpen(true)}
+            aria-label="Custom range"
+            title="Custom range"
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-all cursor-pointer',
+              isCustom
+                ? 'bg-[#3D3B4F] text-white font-semibold'
+                : 'text-[#9B9590] hover:text-[#6b6560]'
+            )}
+          >
+            <CalendarDays className="h-[13px] w-[13px]" strokeWidth={1.9} />
+            {isCustom && <span className="whitespace-nowrap">{shortLabel}</span>}
+          </button>
+        )}
       </div>
     </>
   );

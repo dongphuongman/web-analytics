@@ -322,11 +322,12 @@ function DocsIndex(): ReactElement {
   data-api="${EXAMPLE_COLLECT_URL}/api/event"
   src="https://plausible.io/js/script.js"></script>`}</Code>
           <p>
-            UTM tags are read from the page URL server-side; custom events, props, and revenue
-            amounts carry over; <Inline>engagement</Inline> beacons feed visit duration. Plausible
-            sessionizes on its servers, so Traks derives session ids from 30-minute windows - visits
-            and bounce rate for Plausible-sourced traffic are close to, not identical to,
-            Plausible&rsquo;s.
+            UTM tags are read from the page URL server-side; custom events, revenue amounts, and
+            props on pageviews and events carry over, so a site segmented by a property such as a
+            tenant id can be filtered the same way (see <A href="#goals">Filters and segments</A>);{' '}
+            <Inline>engagement</Inline> beacons feed visit duration. Plausible sessionizes on its
+            servers, so Traks derives session ids from 30-minute windows - visits and bounce rate
+            for Plausible-sourced traffic are close to, not identical to, Plausible&rsquo;s.
           </p>
           <Note>
             The compatibility path is for zero-change migrations and server-side senders. For the
@@ -383,6 +384,26 @@ function DocsIndex(): ReactElement {
             dashboard by it; filters stack and live in the URL. Save the active combination as a
             named segment from the bookmark menu and re-apply it in one click.
           </p>
+          <p>
+            <strong>Property filters</strong>: open a custom event&rsquo;s breakdown and click a
+            property (for example <Inline>plan: pro</Inline>) to filter the dashboard to the visits
+            that carried it. Their pageviews, goals, and visit duration all count, while a page
+            tagged with a different value (another tenant in the same visit) stays out. Combine up
+            to five properties; each shows as its own chip and they save with segments. In a link or
+            an API call the filter is one JSON object:
+          </p>
+          <Code>{`?props={"spaceid":"organizer-123","eventid":"event-456"}`}</Code>
+          <p>
+            <strong>Date ranges</strong>: besides the presets, the calendar button at the end of the
+            period picker reports on any span of whole days, both ends included and counted in the
+            site&rsquo;s timezone. The range lives in the URL, so a campaign or billing-month view
+            is a link you can share with your team:
+          </p>
+          <Code>{`?period=2026-03-01..2026-03-15`}</Code>
+          <Note>
+            Custom ranges are read from R2, so one that runs into today trails the live numbers by a
+            few minutes. Public share pages offer the preset periods only.
+          </Note>
         </Section>
 
         {/* 10 */}
@@ -451,7 +472,11 @@ function DocsIndex(): ReactElement {
             <Inline>get_stats</Inline>, <Inline>get_custom_events</Inline>,{' '}
             <Inline>get_event_props</Inline>, <Inline>list / create / update / delete_goal</Inline>,{' '}
             <Inline>get_goal_stats</Inline>, <Inline>list / create / update / delete_funnel</Inline>
-            , <Inline>get_funnel_stats</Inline>. The same bearer token authorizes plain REST calls
+            , <Inline>get_funnel_stats</Inline>. Every tool and endpoint that takes a{' '}
+            <Inline>period</Inline> accepts a preset (<Inline>today</Inline>, <Inline>7d</Inline>,{' '}
+            <Inline>30d</Inline>, …) or a custom range such as{' '}
+            <Inline>2026-03-01..2026-03-15</Inline>; analytics endpoints also take the{' '}
+            <Inline>props</Inline> filter above. The same bearer token authorizes plain REST calls
             under <Inline>/api</Inline>. Tokens can never mint other tokens or manage members; those
             actions need a signed-in session.
           </p>

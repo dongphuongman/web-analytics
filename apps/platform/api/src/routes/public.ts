@@ -1,6 +1,6 @@
 import { Hono, type Context, type Next } from 'hono';
 import { and, eq } from 'drizzle-orm';
-import type { PublicSiteInfo } from '@traks/shared';
+import { isPreset, type PublicSiteInfo } from '@traks/shared';
 import { funnels, sites } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
@@ -64,6 +64,13 @@ export async function publicAnalyticsGate(c: Context<Env>, next: Next): Promise<
 
   const section = sectionFor(endpoint);
   if (!section) return notFound();
+
+  // Share pages show preset periods only: every distinct custom range is a
+  // fresh, uncached R2 scan, and an anonymous viewer could mint unlimited ones.
+  const period = c.req.query('period');
+  if (period !== undefined && !isPreset(period)) {
+    return c.json({ error: 'Share pages show preset periods only' }, 400);
+  }
 
   const site = await loadPublicSite(c, siteId);
   if (!site) return notFound();
